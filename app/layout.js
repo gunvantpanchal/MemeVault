@@ -1,7 +1,7 @@
 import "./globals.css";
 
 export const metadata = {
-  metadataBase: new URL("https://memevault.vercel.app"),
+  metadataBase: new URL("https://meme-vault-six.vercel.app"),
   title: {
     default: "MemeVault — Meme Sound Collection",
     template: "%s | MemeVault",
@@ -26,7 +26,7 @@ export const metadata = {
   openGraph: {
     type: "website",
     locale: "en_IN",
-    url: "https://memevault.vercel.app",
+    url: "https://meme-vault-six.vercel.app",
     siteName: "MemeVault",
     title: "MemeVault — Meme Sound Collection",
     description:
