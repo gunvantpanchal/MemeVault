@@ -1,15 +1,15 @@
 import { readFile } from "fs/promises";
 import path from "path";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
+import { Document, WithId } from "mongodb";
 
-function serialize(doc) {
+function serialize(doc: WithId<Document>) {
   const { _id, ...rest } = doc;
   return { ...rest, id: _id.toString() };
 }
 
-// GET /api/sounds?q=vine&cat=Memes
-export async function GET(request) {
+export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const q   = searchParams.get("q")?.trim();
   const cat = searchParams.get("cat");
@@ -17,7 +17,7 @@ export async function GET(request) {
   const db = await getDb();
 
   if (db) {
-    const filter = {};
+    const filter: Record<string, unknown> = {};
     if (cat && cat !== "All") filter.category = cat;
     if (q) filter.name = { $regex: q, $options: "i" };
 
@@ -33,11 +33,11 @@ export async function GET(request) {
     });
   }
 
-  // Local JSON fallback (populated by npm run scrape)
+  // Local JSON fallback
   try {
     const raw = await readFile(path.join(process.cwd(), "data", "sounds.json"), "utf8");
-    let data = JSON.parse(raw);
-    if (q) data = data.filter((s) => s.name?.toLowerCase().includes(q.toLowerCase()));
+    let data = JSON.parse(raw) as Array<Record<string, unknown>>;
+    if (q) data = data.filter((s) => (s.name as string)?.toLowerCase().includes(q.toLowerCase()));
     if (cat && cat !== "All") data = data.filter((s) => s.category === cat);
     return NextResponse.json(data, { headers: { "X-Sound-Source": "local" } });
   } catch {
@@ -45,24 +45,29 @@ export async function GET(request) {
   }
 }
 
-// POST /api/sounds  — called by the upload form after Firebase Storage upload
-export async function POST(request) {
+export async function POST(request: NextRequest) {
   const db = await getDb();
   if (!db) {
     return NextResponse.json(
       { error: "MongoDB not configured — add MONGODB_URI to .env.local" },
-      { status: 503 }
+      { status: 503 },
     );
   }
 
-  const body = await request.json();
+  const body = await request.json() as {
+    name?: string;
+    category?: string;
+    filename?: string;
+    firebaseUrl?: string;
+    dur?: string;
+    storagePath?: string;
+  };
   const { name, category, filename, firebaseUrl, dur } = body;
 
   if (!name?.trim() || !firebaseUrl) {
     return NextResponse.json({ error: "name and firebaseUrl are required" }, { status: 400 });
   }
 
-  // Prevent duplicate filenames
   if (filename) {
     const exists = await db.collection("sounds").findOne({ filename });
     if (exists) {

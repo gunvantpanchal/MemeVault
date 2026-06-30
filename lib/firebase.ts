@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
-import { getStorage } from "firebase/storage";
+import { getStorage, FirebaseStorage } from "firebase/storage";
 
 const config = {
   apiKey:            process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -13,10 +13,10 @@ const config = {
 // Firebase Storage is used for audio files.
 // Metadata (likes, dislikes, downloads, etc.) is stored in MongoDB, not Firestore.
 export const isFirebaseConfigured = Boolean(
-  config.apiKey && config.projectId && config.storageBucket
+  config.apiKey && config.projectId && config.storageBucket,
 );
 
-let storage = null;
+let storage: FirebaseStorage | null = null;
 
 if (isFirebaseConfigured) {
   const app = getApps().length ? getApp() : initializeApp(config);

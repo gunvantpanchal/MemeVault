@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import React, {
+  useState, useRef, useEffect, useCallback, useMemo, CSSProperties,
+} from "react";
 import Link from "next/link";
 import {
   Search, Volume2, VolumeX, Square, Play,
@@ -9,8 +11,33 @@ import {
 import { SYNTHS, getSynth } from "@/lib/synths";
 import { getEngine } from "@/lib/audio";
 
+// ── Types ──────────────────────────────────────────────────────────────────
+interface Sound {
+  id: string;
+  name: string;
+  category: string;
+  dur?: string;
+  kind: "file" | "synth";
+  synthId?: string;
+  url?: string;
+  filename?: string;
+  firebaseUrl?: string;
+  likes?: number;
+  dislikes?: number;
+  downloads?: number;
+  plays?: number;
+}
+
+interface ReactionState {
+  likes: number;
+  dislikes: number;
+  downloads: number;
+  userLiked?: boolean;
+  userDisliked?: boolean;
+}
+
 // ── Category metadata ──────────────────────────────────────────────────────
-const CAT_META = {
+const CAT_META: Record<string, { emoji: string; color: string }> = {
   Trending:  { emoji: "🔥", color: "#ff4500" },
   Memes:     { emoji: "😂", color: "#8b5cf6" },
   Bollywood: { emoji: "🎬", color: "#f59e0b" },
@@ -23,12 +50,14 @@ const CAT_META = {
   Game:      { emoji: "🕹️", color: "#22c55e" },
   Music:     { emoji: "🎵", color: "#e879f9" },
 };
-const getCat = (c) => CAT_META[c] ?? { emoji: "🔊", color: "#6366f1" };
+const getCat = (c?: string) => CAT_META[c ?? ""] ?? { emoji: "🔊", color: "#6366f1" };
 
 // ── Waveform bars ──────────────────────────────────────────────────────────
-const DELAYS = ["0s","0.1s","0.2s","0.15s","0.05s","0.25s","0.08s"];
+const DELAYS = ["0s", "0.1s", "0.2s", "0.15s", "0.05s", "0.25s", "0.08s"];
 
-function WaveBars({ color, height = 20, gap = 3, barW = 3 }) {
+function WaveBars({ color, height = 20, gap = 3, barW = 3 }: {
+  color: string; height?: number; gap?: number; barW?: number;
+}) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap, height }}>
       {DELAYS.map((d, i) => (
@@ -38,10 +67,11 @@ function WaveBars({ color, height = 20, gap = 3, barW = 3 }) {
     </div>
   );
 }
-function WaveFlat({ color, height = 14 }) {
+
+function WaveFlat({ color, height = 14 }: { color: string; height?: number }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 2, height }}>
-      {[0.3,0.6,1,0.7,0.45,0.8,0.35].map((h, i) => (
+      {[0.3, 0.6, 1, 0.7, 0.45, 0.8, 0.35].map((h, i) => (
         <div key={i} style={{ width: 2, height: h * height, background: color, borderRadius: 2, opacity: 0.3 }} />
       ))}
     </div>
@@ -49,13 +79,14 @@ function WaveFlat({ color, height = 14 }) {
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-function fmt(n) {
+function fmt(n: number): string {
   n = Number(n) || 0;
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
   if (n >= 1000)      return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
   return String(n);
 }
-function parseDurMs(dur) {
+
+function parseDurMs(dur?: string): number {
   if (!dur) return 2800;
   const [m, s] = dur.split(":").map(Number);
   return ((m || 0) * 60 + (s || 0)) * 1000 + 300;
@@ -63,21 +94,19 @@ function parseDurMs(dur) {
 
 // ── Main component ─────────────────────────────────────────────────────────
 export default function MemeVault() {
-  const [sounds, setSounds]       = useState([]);
+  const [sounds, setSounds]       = useState<Sound[]>([]);
   const [source, setSource]       = useState("loading");
   const [query, setQuery]         = useState("");
   const [cat, setCat]             = useState("All");
   const [muted, setMuted]         = useState(false);
   const [volume, setVolume]       = useState(0.8);
-  const [playingId, setPlayingId] = useState(null);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const [reactions, setReactions] = useState<Record<string, ReactionState>>({});
 
-  // reactions[id] = { likes, dislikes, downloads, userLiked, userDisliked }
-  const [reactions, setReactions] = useState({});
-
-  const canvasRef = useRef(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const liveRef   = useRef(0);
-  const rafRef    = useRef(null);
-  const timerRef  = useRef(null);
+  const rafRef    = useRef<number>(0);
+  const timerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Load sounds ────────────────────────────────────────────────────────
   useEffect(() => {
@@ -87,7 +116,7 @@ export default function MemeVault() {
       if (cancelled) return;
       setSounds(SYNTHS.map((s) => ({
         id: s.id, name: s.name, category: s.category, dur: s.dur,
-        kind: "synth", synthId: s.id,
+        kind: "synth" as const, synthId: s.id,
         likes: 0, dislikes: 0, downloads: 0, plays: 0,
       })));
       setSource("demo");
@@ -98,11 +127,11 @@ export default function MemeVault() {
         const src = r.headers.get("X-Sound-Source") || "local";
         return r.json().then((data) => ({ data, src }));
       })
-      .then(({ data, src }) => {
+      .then(({ data, src }: { data: Sound[]; src: string }) => {
         if (cancelled) return;
         if (Array.isArray(data) && data.length > 0) {
-          setSounds(data.map((s) => ({ ...s, kind: "file", url: s.firebaseUrl || s.url })));
-          setSource(src); // "mongodb" | "local"
+          setSounds(data.map((s) => ({ ...s, kind: "file" as const, url: s.firebaseUrl || s.url })));
+          setSource(src);
         } else {
           useSynths();
         }
@@ -116,20 +145,20 @@ export default function MemeVault() {
   useEffect(() => { getEngine().setVolume(volume, muted); }, [volume, muted]);
 
   // ── Play ───────────────────────────────────────────────────────────────
-  const play = useCallback((s) => {
+  const play = useCallback((s: Sound) => {
     const eng = getEngine();
     eng.ensure();
 
     if (playingId === s.id) {
       eng.stopAll();
       setPlayingId(null);
-      clearTimeout(timerRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
       return;
     }
 
-    if (s.kind === "file" && s.url) {
-      eng.playUrl(s.url).catch(console.error);
-    } else if (s.kind === "synth") {
+    if (s.kind === "file" && s.id) {
+      eng.playUrl(`/api/sounds/${s.id}/stream`).catch(console.error);
+    } else if (s.kind === "synth" && s.synthId) {
       const def = getSynth(s.synthId);
       if (def) eng.playSynth(def.make);
     }
@@ -138,7 +167,6 @@ export default function MemeVault() {
     liveRef.current = performance.now() + durMs;
     setPlayingId(s.id);
 
-    // Increment plays counter (fire-and-forget)
     if (s.kind === "file") {
       fetch(`/api/sounds/${s.id}/download`, { method: "POST" }).catch(() => {});
       setReactions((r) => ({
@@ -147,22 +175,24 @@ export default function MemeVault() {
       }));
     }
 
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => setPlayingId((id) => id === s.id ? null : id), durMs);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(
+      () => setPlayingId((id) => (id === s.id ? null : id)),
+      durMs,
+    );
   }, [playingId]);
 
   const stopAll = useCallback(() => {
     getEngine().stopAll();
     setPlayingId(null);
-    clearTimeout(timerRef.current);
+    if (timerRef.current) clearTimeout(timerRef.current);
   }, []);
 
   // ── Like ───────────────────────────────────────────────────────────────
-  const like = useCallback(async (s, e) => {
+  const like = useCallback(async (s: Sound, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (reactions[s.id]?.userLiked) return; // already liked
+    if (reactions[s.id]?.userLiked) return;
 
-    // Optimistic update
     setReactions((r) => ({
       ...r,
       [s.id]: {
@@ -170,24 +200,24 @@ export default function MemeVault() {
         userLiked: true,
         userDisliked: false,
         likes: (r[s.id]?.likes ?? s.likes ?? 0) + 1,
-        // undo a previous dislike if any
         dislikes: r[s.id]?.userDisliked
           ? Math.max(0, (r[s.id]?.dislikes ?? s.dislikes ?? 0) - 1)
           : (r[s.id]?.dislikes ?? s.dislikes ?? 0),
+        downloads: r[s.id]?.downloads ?? s.downloads ?? 0,
       },
     }));
 
     if (s.kind !== "synth") {
       const res = await fetch(`/api/sounds/${s.id}/like`, { method: "POST" }).catch(() => null);
       if (res?.ok) {
-        const data = await res.json();
+        const data = await res.json() as { likes: number; dislikes: number };
         setReactions((r) => ({ ...r, [s.id]: { ...r[s.id], likes: data.likes, dislikes: data.dislikes } }));
       }
     }
   }, [reactions]);
 
   // ── Dislike ────────────────────────────────────────────────────────────
-  const dislike = useCallback(async (s, e) => {
+  const dislike = useCallback(async (s: Sound, e: React.MouseEvent) => {
     e.stopPropagation();
     if (reactions[s.id]?.userDisliked) return;
 
@@ -201,24 +231,21 @@ export default function MemeVault() {
         likes: r[s.id]?.userLiked
           ? Math.max(0, (r[s.id]?.likes ?? s.likes ?? 0) - 1)
           : (r[s.id]?.likes ?? s.likes ?? 0),
+        downloads: r[s.id]?.downloads ?? s.downloads ?? 0,
       },
     }));
 
     if (s.kind !== "synth") {
       const res = await fetch(`/api/sounds/${s.id}/dislike`, { method: "POST" }).catch(() => null);
       if (res?.ok) {
-        const data = await res.json();
+        const data = await res.json() as { likes: number; dislikes: number };
         setReactions((r) => ({ ...r, [s.id]: { ...r[s.id], likes: data.likes, dislikes: data.dislikes } }));
       }
     }
   }, [reactions]);
 
-  // ── Download file ──────────────────────────────────────────────────────
-  // Proxy through /api/sounds/[id]/file (same-origin) so the browser's
-  // `download` attribute works and no CORS error occurs.
-  // The API route fetches from Firebase server-side and streams back with
-  // Content-Disposition: attachment, triggering an automatic save dialog.
-  const downloadFile = useCallback((s, e) => {
+  // ── Download ───────────────────────────────────────────────────────────
+  const downloadFile = useCallback((s: Sound, e: React.MouseEvent) => {
     e.stopPropagation();
     if (s.kind !== "file" || !s.id) return;
 
@@ -229,7 +256,6 @@ export default function MemeVault() {
     a.click();
     document.body.removeChild(a);
 
-    // Optimistic counter update (API route also increments server-side)
     setReactions((r) => ({
       ...r,
       [s.id]: { ...r[s.id], downloads: (r[s.id]?.downloads ?? s.downloads ?? 0) + 1 },
@@ -237,20 +263,22 @@ export default function MemeVault() {
   }, []);
 
   // ── Share ──────────────────────────────────────────────────────────────
-  const share = useCallback((s, e) => {
+  const share = useCallback((s: Sound, e: React.MouseEvent) => {
     e.stopPropagation();
     const text = `"${s.name}" — MemeVault`;
     if (navigator.share) {
       navigator.share({ title: s.name, text }).catch(() => {});
     } else {
-      navigator.clipboard?.writeText(`${window.location.origin}?q=${encodeURIComponent(s.name)}`).catch(() => {});
+      navigator.clipboard?.writeText(
+        `${window.location.origin}?q=${encodeURIComponent(s.name)}`,
+      ).catch(() => {});
     }
   }, []);
 
   // ── Keyboard ───────────────────────────────────────────────────────────
   useEffect(() => {
-    const onKey = (e) => {
-      if (/^(INPUT|TEXTAREA|SELECT)$/.test(e.target?.tagName)) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (/^(INPUT|TEXTAREA|SELECT)$/.test((e.target as HTMLElement)?.tagName)) return;
       if (e.key === "Escape") stopAll();
     };
     window.addEventListener("keydown", onKey);
@@ -264,6 +292,7 @@ export default function MemeVault() {
       const cv = canvasRef.current;
       if (!cv) return;
       const ctx = cv.getContext("2d");
+      if (!ctx) return;
       const dpr = window.devicePixelRatio || 1;
       const w = cv.clientWidth, h = cv.clientHeight;
       if (cv.width !== w * dpr || cv.height !== h * dpr) {
@@ -290,13 +319,13 @@ export default function MemeVault() {
         const step = buf.length / w;
         for (let x = 0; x < w; x++) {
           const v = (buf[Math.floor(x * step)] - 128) / 128;
-          x === 0 ? ctx.moveTo(x, h/2 + v*(h/2)*0.85) : ctx.lineTo(x, h/2 + v*(h/2)*0.85);
+          x === 0 ? ctx.moveTo(x, h / 2 + v * (h / 2) * 0.85) : ctx.lineTo(x, h / 2 + v * (h / 2) * 0.85);
         }
         ctx.globalAlpha = 1;
       } else {
         const tt = performance.now() / 900;
         for (let x = 0; x < w; x++) {
-          const y = h/2 + Math.sin(x/32 + tt)*3.5*Math.sin(tt*0.6);
+          const y = h / 2 + Math.sin(x / 32 + tt) * 3.5 * Math.sin(tt * 0.6);
           x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
         }
         ctx.globalAlpha = 0.3;
@@ -322,19 +351,22 @@ export default function MemeVault() {
     }
     if (cat === "All") return arr;
     if (cat === "Trending")
-      return [...arr].sort((a, b) => ((reactions[b.id]?.downloads ?? b.downloads ?? b.plays ?? 0)) - ((reactions[a.id]?.downloads ?? a.downloads ?? a.plays ?? 0)));
+      return [...arr].sort(
+        (a, b) =>
+          (reactions[b.id]?.downloads ?? b.downloads ?? b.plays ?? 0) -
+          (reactions[a.id]?.downloads ?? a.downloads ?? a.plays ?? 0),
+      );
     return arr.filter((s) => s.category === cat);
   }, [sounds, query, cat, reactions]);
 
-  const playingSound  = sounds.find((s) => s.id === playingId);
-  const playCatMeta   = playingSound ? getCat(playingSound.category) : null;
+  const playingSound = sounds.find((s) => s.id === playingId);
+  const playCatMeta  = playingSound ? getCat(playingSound.category) : null;
 
-  // Per-sound reactive getters
-  const getLikes     = (s) => reactions[s.id]?.likes     ?? s.likes     ?? 0;
-  const getDislikes  = (s) => reactions[s.id]?.dislikes  ?? s.dislikes  ?? 0;
-  const getDownloads = (s) => reactions[s.id]?.downloads ?? s.downloads ?? s.plays ?? 0;
-  const hasLiked     = (id) => !!reactions[id]?.userLiked;
-  const hasDisliked  = (id) => !!reactions[id]?.userDisliked;
+  const getLikes     = (s: Sound) => reactions[s.id]?.likes     ?? s.likes     ?? 0;
+  const getDislikes  = (s: Sound) => reactions[s.id]?.dislikes  ?? s.dislikes  ?? 0;
+  const getDownloads = (s: Sound) => reactions[s.id]?.downloads ?? s.downloads ?? s.plays ?? 0;
+  const hasLiked     = (id: string) => !!reactions[id]?.userLiked;
+  const hasDisliked  = (id: string) => !!reactions[id]?.userDisliked;
 
   return (
     <div style={S.root}>
@@ -368,13 +400,11 @@ export default function MemeVault() {
           </div>
         </div>
 
-        {/* Canvas waveform */}
         <div style={S.canvasWrap}>
           <canvas ref={canvasRef} style={{ width: "100%", height: "100%", display: "block" }} />
         </div>
 
-        {/* Now playing bar */}
-        {playingSound && (
+        {playingSound && playCatMeta && (
           <div style={{ ...S.nowPlaying, borderColor: `${playCatMeta.color}40`, background: `${playCatMeta.color}10` }}>
             <WaveBars color={playCatMeta.color} height={16} gap={2} barW={2} />
             <span style={S.nowText}>
@@ -390,7 +420,6 @@ export default function MemeVault() {
           </div>
         )}
 
-        {/* Category chips */}
         <div style={S.chips}>
           {cats.map((c) => {
             const m = getCat(c);
@@ -423,7 +452,6 @@ export default function MemeVault() {
               borderColor:  isPlaying ? meta.color : "var(--border)",
               boxShadow:    isPlaying ? `0 0 28px ${meta.color}28, 0 4px 24px rgba(0,0,0,0.5)` : "0 4px 20px rgba(0,0,0,0.3)",
             }}>
-              {/* Row 1: category + like/dislike + share */}
               <div style={S.cardTop}>
                 <span style={{ ...S.catBadge, background: `${meta.color}18`, color: meta.color }}>
                   {meta.emoji} {s.category}
@@ -453,16 +481,15 @@ export default function MemeVault() {
                 </div>
               </div>
 
-              {/* Row 2: sound name */}
               <div style={S.cardName}>{s.name}</div>
 
-              {/* Row 3: waveform + play + download + stats */}
               <div style={S.cardBottom}>
                 <div style={{ flex: 1, overflow: "hidden" }}>
-                  {isPlaying ? <WaveBars color={meta.color} height={14} gap={2} barW={2} /> : <WaveFlat color="var(--muted)" height={14} />}
+                  {isPlaying
+                    ? <WaveBars color={meta.color} height={14} gap={2} barW={2} />
+                    : <WaveFlat color="var(--muted)" height={14} />}
                 </div>
 
-                {/* Play / Stop */}
                 <button onClick={() => play(s)} style={{
                   ...S.playBtn,
                   background: isPlaying ? meta.color : "var(--surface)",
@@ -472,22 +499,15 @@ export default function MemeVault() {
                 }} aria-label={isPlaying ? "Stop" : "Play"}>
                   {isPlaying
                     ? <Square size={12} fill="currentColor" />
-                    : <Play size={12} fill="currentColor" style={{ marginLeft: 1 }} />
-                  }
+                    : <Play size={12} fill="currentColor" style={{ marginLeft: 1 }} />}
                 </button>
 
-                {/* Download button */}
                 {s.kind === "file" && (
-                  <button
-                    onClick={(e) => downloadFile(s, e)}
-                    style={S.dlBtn}
-                    title="Download MP3"
-                  >
+                  <button onClick={(e) => downloadFile(s, e)} style={S.dlBtn} title="Download MP3">
                     <Download size={13} style={{ color: "var(--muted)" }} />
                   </button>
                 )}
 
-                {/* Stats */}
                 <div style={S.stats}>
                   <span style={S.statLine}>⬇️ {fmt(getDownloads(s))}</span>
                   {s.dur && <span style={S.statLine}>⏱ {s.dur}</span>}
@@ -500,14 +520,12 @@ export default function MemeVault() {
         {list.length === 0 && source !== "loading" && (
           <div style={S.emptyState}>
             {query
-              ? <>Nothing matches <b>"{query}"</b></>
-              : <>No sounds here yet. <Link href="/upload" style={{ color: "var(--accent)", fontWeight: 700 }}>Upload one →</Link></>
-            }
+              ? <><b>&ldquo;{query}&rdquo;</b> — no results</>
+              : <>No sounds here yet. <Link href="/upload" style={{ color: "var(--accent)", fontWeight: 700 }}>Upload one →</Link></>}
           </div>
         )}
       </main>
 
-      {/* ── Footer ── */}
       <footer style={S.footer}>
         <span style={{ fontWeight: 700 }}>Meme<span style={{ color: "var(--accent)" }}>Vault</span></span>
         <span style={{ color: "var(--muted)" }}>Click to play · Esc stops all · ⬇ to download</span>
@@ -516,8 +534,8 @@ export default function MemeVault() {
   );
 }
 
-/* ── Styles ─────────────────────────────────────────────────────────────── */
-const S = {
+// ── Styles ─────────────────────────────────────────────────────────────────
+const S: Record<string, CSSProperties> = {
   root: { minHeight: "100vh", display: "flex", flexDirection: "column" },
 
   header: {
@@ -528,7 +546,6 @@ const S = {
   },
   topRow: { display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", marginBottom: 14 },
   brand: { display: "flex", alignItems: "center", gap: 8, flexShrink: 0 },
-  logoEmoji: { fontSize: 26, lineHeight: 1 },
   wordmark: { fontFamily: "var(--font-display)", fontWeight: 800, fontSize: 24, letterSpacing: "-0.03em", color: "var(--text)" },
 
   searchWrap: {
@@ -564,17 +581,12 @@ const S = {
 
   chips: { display: "flex", gap: 7, flexWrap: "wrap", alignItems: "center" },
   chip: { display: "flex", alignItems: "center", cursor: "pointer", border: "1px solid var(--border)", background: "transparent", color: "var(--muted)", borderRadius: 999, padding: "6px 14px", fontSize: 12.5, fontWeight: 600, fontFamily: "inherit", transition: "all .15s" },
-  demoNote: { fontSize: 11.5, color: "var(--muted)", fontFamily: "var(--font-data)", marginLeft: 4 },
-  localNote: { fontSize: 11.5, color: "#06b6d4", fontFamily: "var(--font-data)", marginLeft: 4 },
-  mongoNote: { fontSize: 11.5, color: "#10b981", fontFamily: "var(--font-data)", marginLeft: 4 },
-  code: { background: "rgba(255,255,255,0.08)", padding: "1px 5px", borderRadius: 4, fontSize: 11 },
 
   grid: { flex: 1, padding: "20px clamp(16px,4vw,52px) 48px", display: "grid", gap: 14, gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))", alignContent: "start" },
   loadState: { gridColumn: "1/-1", display: "flex", alignItems: "center", justifyContent: "center", gap: 14, color: "var(--muted)", fontSize: 15, padding: "80px 20px" },
   emptyState: { gridColumn: "1/-1", textAlign: "center", color: "var(--muted)", padding: "60px 20px", fontSize: 15, lineHeight: 1.7 },
 
   card: { background: "var(--card)", border: "1px solid", borderRadius: 18, padding: "14px 14px 12px", display: "flex", flexDirection: "column", gap: 10 },
-
   cardTop: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 },
   catBadge: { display: "inline-flex", alignItems: "center", gap: 4, borderRadius: 999, padding: "3px 10px", fontSize: 10.5, fontWeight: 700, letterSpacing: "0.04em", whiteSpace: "nowrap" },
   cardActions: { display: "flex", gap: 2, flexShrink: 0 },

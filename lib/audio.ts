@@ -1,21 +1,17 @@
 "use client";
 
-// A single shared audio engine for the whole app: one AudioContext,
-// one master gain (volume), and one analyser (the visualizer reads it).
-// Supports both synthesized sounds and real files from a URL.
+export type MakeAudioFn = (ctx: AudioContext, out: GainNode, t: number) => void;
 
 class AudioEngine {
-  constructor() {
-    this.ctx = null;
-    this.master = null;
-    this.analyser = null;
-    this.bufferCache = new Map(); // url -> decoded AudioBuffer
-    this.volume = 0.8;
-    this.muted = false;
-    this.lastActive = 0; // performance.now() timestamp; visualizer "liveness"
-  }
+  ctx: AudioContext | null = null;
+  master: GainNode | null = null;
+  analyser: AnalyserNode | null = null;
+  private bufferCache = new Map<string, AudioBuffer>();
+  private volume = 0.8;
+  private muted = false;
+  lastActive = 0;
 
-  ensure() {
+  ensure(): AudioContext {
     if (this.ctx) {
       if (this.ctx.state === "suspended") this.ctx.resume();
       return this.ctx;
@@ -34,32 +30,30 @@ class AudioEngine {
     return ctx;
   }
 
-  setVolume(v, muted) {
+  setVolume(v: number, muted: boolean): void {
     this.volume = v;
     this.muted = muted;
     if (this.master && this.ctx) {
       this.master.gain.setTargetAtTime(
         muted ? 0 : v,
         this.ctx.currentTime,
-        0.01
+        0.01,
       );
     }
   }
 
-  // Play a synthesized sound. `make` is a (ctx, out, t) => nodes[] function.
-  playSynth(make) {
+  playSynth(make: MakeAudioFn): void {
     const ctx = this.ensure();
     const t = ctx.currentTime + 0.01;
     try {
-      make(ctx, this.master, t);
-    } catch (e) {
+      make(ctx, this.master!, t);
+    } catch {
       // a node failed to schedule — keep the board alive
     }
     this.lastActive = performance.now() + 1400;
   }
 
-  // Play a real audio file from a URL (Firebase Storage download URL, blob:, etc.)
-  async playUrl(url) {
+  async playUrl(url: string): Promise<void> {
     const ctx = this.ensure();
     let buf = this.bufferCache.get(url);
     if (!buf) {
@@ -69,28 +63,27 @@ class AudioEngine {
     }
     const src = ctx.createBufferSource();
     src.buffer = buf;
-    src.connect(this.master);
+    src.connect(this.master!);
     src.start();
     this.lastActive = performance.now() + Math.min(buf.duration * 1000, 6000);
   }
 
-  // Cut everything: briefly duck the master to silence, then restore.
-  stopAll() {
-    if (!this.ctx) return;
+  stopAll(): void {
+    if (!this.ctx || !this.master) return;
     const m = this.master;
     m.gain.cancelScheduledValues(this.ctx.currentTime);
     m.gain.setValueAtTime(0.0001, this.ctx.currentTime);
     m.gain.setTargetAtTime(
       this.muted ? 0 : this.volume,
       this.ctx.currentTime + 0.08,
-      0.05
+      0.05,
     );
     this.lastActive = 0;
   }
 }
 
-let engine = null;
-export function getEngine() {
+let engine: AudioEngine | null = null;
+export function getEngine(): AudioEngine {
   if (!engine) engine = new AudioEngine();
   return engine;
 }

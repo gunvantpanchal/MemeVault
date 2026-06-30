@@ -1,25 +1,30 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowLeft, UploadCloud, Play, Check, AlertCircle } from "lucide-react";
 import { isFirebaseConfigured, storage } from "@/lib/firebase";
 import { getEngine } from "@/lib/audio";
 
-const CATEGORIES = ["Trending", "Memes", "Bollywood", "Anime", "Gaming", "Viral", "Reactions", "FX", "Alerts", "Music"];
+const CATEGORIES = [
+  "Trending", "Memes", "Bollywood", "Anime", "Gaming",
+  "Viral", "Reactions", "FX", "Alerts", "Music",
+];
+
+type UploadStatus = null | "uploading" | "done" | { error: string };
 
 export default function UploadForm() {
-  const [file, setFile] = useState(null);
-  const [name, setName] = useState("");
+  const [file, setFile]         = useState<File | null>(null);
+  const [name, setName]         = useState("");
   const [category, setCategory] = useState("Memes");
-  const [hotkey, setHotkey] = useState("");
-  const [dur, setDur] = useState("");
+  const [hotkey, setHotkey]     = useState("");
+  const [dur, setDur]           = useState("");
   const [dragging, setDragging] = useState(false);
-  const [status, setStatus] = useState(null); // null | 'uploading' | 'done' | {error}
-  const [progressUrl, setProgressUrl] = useState(null); // object URL for preview
-  const inputRef = useRef(null);
+  const [status, setStatus]     = useState<UploadStatus>(null);
+  const [progressUrl, setProgressUrl] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const onPick = useCallback((f) => {
+  const onPick = useCallback((f: File | null | undefined) => {
     if (!f) return;
     if (!f.type.startsWith("audio/")) {
       setStatus({ error: "That's not an audio file. Use .mp3, .ogg, .wav, or .m4a." });
@@ -30,7 +35,6 @@ export default function UploadForm() {
     if (!name) setName(f.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " "));
     const url = URL.createObjectURL(f);
     setProgressUrl(url);
-    // read duration
     const a = new Audio();
     a.preload = "metadata";
     a.onloadedmetadata = () => {
@@ -40,7 +44,7 @@ export default function UploadForm() {
     a.src = url;
   }, [name]);
 
-  const onDrop = (e) => {
+  const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
     onPick(e.dataTransfer.files?.[0]);
@@ -55,36 +59,27 @@ export default function UploadForm() {
       setStatus({ error: "Pick a file and give it a name first." });
       return;
     }
-    if (!isFirebaseConfigured) {
+    if (!isFirebaseConfigured || !storage) {
       setStatus({ error: "Firebase Storage is required for uploads — add your keys to .env.local." });
       return;
     }
     setStatus("uploading");
     try {
-      // 1. Upload audio to Firebase Storage
       const { ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
-      const safe     = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const filePath = `sounds/${Date.now()}-${safe}`;
-      const sref     = ref(storage, filePath);
+      const safe      = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const filePath  = `sounds/${Date.now()}-${safe}`;
+      const sref      = ref(storage, filePath);
       await uploadBytes(sref, file);
       const firebaseUrl = await getDownloadURL(sref);
 
-      // 2. Save metadata to MongoDB via API route
       const res = await fetch("/api/sounds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          category,
-          filename: safe,
-          firebaseUrl,
-          dur,
-          storagePath: filePath,
-        }),
+        body: JSON.stringify({ name: name.trim(), category, filename: safe, firebaseUrl, dur, storagePath: filePath }),
       });
 
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
+        const err = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(err.error || `Save failed (${res.status}) — is MONGODB_URI set in .env.local?`);
       }
 
@@ -93,7 +88,7 @@ export default function UploadForm() {
       if (inputRef.current) inputRef.current.value = "";
     } catch (e) {
       console.error(e);
-      setStatus({ error: e?.message || "Upload failed. Check your Storage rules and try again." });
+      setStatus({ error: (e as Error)?.message || "Upload failed. Check your Storage rules and try again." });
     }
   };
 
@@ -101,7 +96,7 @@ export default function UploadForm() {
     <div style={S.root}>
       <div style={S.shell}>
         <Link href="/" style={S.back}><ArrowLeft size={16} /> Back to MemeVault</Link>
-        <h1 style={S.h1}>Add a sound 🎭</h1>
+        <h1 style={S.h1}>Add a sound</h1>
         <p style={S.sub}>
           Upload a meme sound clip you own or that is cleared for reuse (CC0 / royalty-free).
           It goes straight into your MemeVault via Firebase Storage.
@@ -117,7 +112,6 @@ export default function UploadForm() {
           </div>
         )}
 
-        {/* drop zone */}
         <div
           onClick={() => inputRef.current?.click()}
           onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
@@ -146,7 +140,6 @@ export default function UploadForm() {
           )}
         </div>
 
-        {/* fields */}
         <label style={S.label}>Name
           <input value={name} onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Victory horn" style={S.input} />
@@ -172,7 +165,7 @@ export default function UploadForm() {
         {status === "done" && (
           <div style={S.ok}><Check size={16} /> Saved! <Link href="/" style={{ color: "var(--accent)", fontWeight: 700 }}>Back to MemeVault →</Link></div>
         )}
-        {status?.error && (
+        {typeof status === "object" && status !== null && "error" in status && (
           <div style={S.err}><AlertCircle size={16} /> {status.error}</div>
         )}
       </div>
@@ -180,7 +173,7 @@ export default function UploadForm() {
   );
 }
 
-const S = {
+const S: Record<string, CSSProperties> = {
   root: { minHeight: "100vh", display: "grid", placeItems: "start center", padding: "40px 16px" },
   shell: { width: "100%", maxWidth: 540 },
   back: { display: "inline-flex", alignItems: "center", gap: 6, color: "var(--muted)", fontSize: 14, marginBottom: 22 },
