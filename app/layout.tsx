@@ -182,6 +182,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             gtag('config', '${GA_ID}', { page_path: window.location.pathname });
           `}
         </Script>
+        <Script
+          src="https://analytics.ahrefs.com/analytics.js"
+          data-key="FXZH8LnMEcYnUNetW1i68w"
+          strategy="afterInteractive"
+        />
       </body>
     </html>
   );
