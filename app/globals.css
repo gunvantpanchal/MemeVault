@@ -32,7 +32,7 @@ button:focus-visible, input:focus-visible, a:focus-visible {
 }
 
 /* ── App shell ── */
-.appRoot { min-height: 100dvh; display: flex; background: var(--bg); }
+.appRoot { height: 100dvh; overflow: hidden; display: flex; background: var(--bg); }
 
 /* ── Sidebar ── */
 .appSidebar {
@@ -86,7 +86,7 @@ button:focus-visible, input:focus-visible, a:focus-visible {
 .sidebarUploadBtn:hover { opacity: 0.88; }
 
 /* ── Main ── */
-.appMain { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+.appMain { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow-y: auto; height: 100dvh; }
 
 /* ── Header ── */
 .appHeader {
