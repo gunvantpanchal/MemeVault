@@ -9,10 +9,16 @@ function serialize(doc: WithId<Document>) {
   return { ...rest, id: _id.toString() };
 }
 
+const DEFAULT_LIMIT = 60;
+const MAX_LIMIT = 100;
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const q   = searchParams.get("q")?.trim();
-  const cat = searchParams.get("cat");
+  const q    = searchParams.get("q")?.trim();
+  const cat  = searchParams.get("cat");
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1") || 1);
+  const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get("limit") || String(DEFAULT_LIMIT)) || DEFAULT_LIMIT));
+  const skip = (page - 1) * limit;
 
   const db = await getDb();
 
@@ -22,16 +28,16 @@ export async function GET(request: NextRequest) {
     if (cat && cat !== "All") filter.category = cat;
     if (q) filter.name = { $regex: q, $options: "i" };
 
-    const docs = await db
-      .collection("sounds")
-      .find(filter)
-      .sort({ createdAt: 1 })
-      .limit(500)
-      .toArray();
+    const col = db.collection("sounds");
+    const [total, docs] = await Promise.all([
+      col.countDocuments(filter),
+      col.find(filter).sort({ createdAt: 1 }).skip(skip).limit(limit).toArray(),
+    ]);
 
-    return NextResponse.json(docs.map(serialize), {
-      headers: { "X-Sound-Source": "mongodb" },
-    });
+    return NextResponse.json(
+      { sounds: docs.map(serialize), total, page, limit, hasMore: skip + docs.length < total },
+      { headers: { "X-Sound-Source": "mongodb" } },
+    );
   }
 
   // Local JSON fallback
@@ -40,9 +46,17 @@ export async function GET(request: NextRequest) {
     let data = JSON.parse(raw) as Array<Record<string, unknown>>;
     if (q) data = data.filter((s) => (s.name as string)?.toLowerCase().includes(q.toLowerCase()));
     if (cat && cat !== "All") data = data.filter((s) => s.category === cat);
-    return NextResponse.json(data, { headers: { "X-Sound-Source": "local" } });
+    const total = data.length;
+    const paged = data.slice(skip, skip + limit);
+    return NextResponse.json(
+      { sounds: paged, total, page, limit, hasMore: skip + paged.length < total },
+      { headers: { "X-Sound-Source": "local" } },
+    );
   } catch {
-    return NextResponse.json([], { headers: { "X-Sound-Source": "none" } });
+    return NextResponse.json(
+      { sounds: [], total: 0, page, limit, hasMore: false },
+      { headers: { "X-Sound-Source": "none" } },
+    );
   }
 }
 

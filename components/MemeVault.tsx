@@ -50,6 +50,15 @@ const CAT_META: Record<string, { emoji: string; color: string }> = {
 };
 const getCat = (c?: string) => CAT_META[c ?? ""] ?? { emoji: "🔊", color: "#6366f1" };
 
+// Stable sidebar/chip categories (the feed is server-paginated, so we can't
+// derive these from the currently-loaded subset).
+const CATEGORIES = [
+  "All", "Trending", "Memes", "Bollywood", "Anime",
+  "Gaming", "Viral", "Reactions", "FX", "Alerts", "Music",
+];
+
+const PAGE_SIZE = 60;
+
 const ANIM_DELAYS = ["0s", "0.1s", "0.2s", "0.15s", "0.05s", "0.25s"];
 
 function WaveBars({ color, height = 20, count = 6 }: {
@@ -115,17 +124,41 @@ export default function MemeVault() {
   const [sounds, setSounds]       = useState<Sound[]>([]);
   const [source, setSource]       = useState("loading");
   const [query, setQuery]         = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [cat, setCat]             = useState("All");
   const [muted, setMuted]         = useState(false);
   const [volume, setVolume]       = useState(0.8);
   const [playingId, setPlayingId] = useState<string | null>(null);
   const [reactions, setReactions] = useState<Record<string, ReactionState>>({});
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const liveRef   = useRef(0);
-  const rafRef    = useRef<number>(0);
-  const timerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Pagination / infinite scroll
+  const [page, setPage]             = useState(1);
+  const [hasMore, setHasMore]       = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [total, setTotal]           = useState(0);
 
+  const canvasRef   = useRef<HTMLCanvasElement>(null);
+  const liveRef     = useRef(0);
+  const rafRef      = useRef<number>(0);
+  const timerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  const mapSound = (s: Sound): Sound => ({ ...s, kind: "file" as const, url: s.firebaseUrl || s.url });
+
+  const buildUrl = useCallback((p: number) => {
+    const params = new URLSearchParams({ page: String(p), limit: String(PAGE_SIZE) });
+    if (debouncedQuery) params.set("q", debouncedQuery);
+    if (cat && cat !== "All") params.set("cat", cat);
+    return `/api/sounds?${params.toString()}`;
+  }, [debouncedQuery, cat]);
+
+  // Debounce search input
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // Load page 1 whenever the search term or category changes
   useEffect(() => {
     let cancelled = false;
     const useSynths = () => {
@@ -136,24 +169,63 @@ export default function MemeVault() {
         likes: 0, dislikes: 0, downloads: 0, plays: 0,
       })));
       setSource("demo");
+      setHasMore(false);
     };
-    fetch("/api/sounds")
-      .then((r) => {
-        const src = r.headers.get("X-Sound-Source") || "local";
-        return r.json().then((data) => ({ data, src }));
-      })
-      .then(({ data, src }: { data: Sound[]; src: string }) => {
+
+    setSource("loading");
+    fetch(buildUrl(1))
+      .then((r) => r.json().then((d) => ({ d, src: r.headers.get("X-Sound-Source") || "local" })))
+      .then(({ d, src }: { d: { sounds: Sound[]; total: number; hasMore: boolean }; src: string }) => {
         if (cancelled) return;
-        if (Array.isArray(data) && data.length > 0) {
-          setSounds(data.map((s) => ({ ...s, kind: "file" as const, url: s.firebaseUrl || s.url })));
-          setSource(src);
-        } else {
-          useSynths();
-        }
+        const arr = (d.sounds || []).map(mapSound);
+        // Only fall back to demo synths when the DB is genuinely empty
+        if (arr.length === 0 && !debouncedQuery && cat === "All") { useSynths(); return; }
+        setSounds(arr);
+        setPage(1);
+        setHasMore(!!d.hasMore);
+        setTotal(d.total ?? arr.length);
+        setSource(src);
       })
-      .catch(() => { if (!cancelled) useSynths(); });
+      .catch(() => {
+        if (cancelled) return;
+        if (!debouncedQuery && cat === "All") useSynths();
+        else { setSounds([]); setHasMore(false); setSource("none"); }
+      });
+
     return () => { cancelled = true; };
-  }, []);
+  }, [debouncedQuery, cat, buildUrl]);
+
+  // Append the next page (infinite scroll)
+  const loadMore = useCallback(() => {
+    if (loadingMore || !hasMore || source === "demo" || source === "loading") return;
+    const next = page + 1;
+    setLoadingMore(true);
+    fetch(buildUrl(next))
+      .then((r) => r.json())
+      .then((d: { sounds: Sound[]; hasMore: boolean }) => {
+        const arr = (d.sounds || []).map(mapSound);
+        setSounds((prev) => {
+          const seen = new Set(prev.map((s) => s.id));
+          return [...prev, ...arr.filter((s) => !seen.has(s.id))];
+        });
+        setPage(next);
+        setHasMore(!!d.hasMore);
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMore(false));
+  }, [loadingMore, hasMore, source, page, buildUrl]);
+
+  // Observe the sentinel at the bottom of the list
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const obs = new IntersectionObserver(
+      (entries) => { if (entries[0]?.isIntersecting) loadMore(); },
+      { rootMargin: "800px" },
+    );
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [loadMore]);
 
   useEffect(() => { getEngine().setVolume(volume, muted); }, [volume, muted]);
 
@@ -327,26 +399,19 @@ export default function MemeVault() {
     return () => cancelAnimationFrame(rafRef.current);
   }, []);
 
-  const cats = useMemo(() => {
-    const set = new Set(sounds.map((s) => s.category).filter(Boolean));
-    return ["All", "Trending", ...Array.from(set).filter((c) => c !== "Trending")];
-  }, [sounds]);
+  const cats = CATEGORIES;
 
+  // Server already filters/paginates real data. Only the demo (synth) fallback
+  // needs client-side filtering so the chips still work with no DB.
   const list = useMemo(() => {
-    let arr = sounds;
-    if (query.trim()) {
-      const q = query.toLowerCase();
-      arr = arr.filter((s) => s.name?.toLowerCase().includes(q) || s.category?.toLowerCase().includes(q));
-    }
-    if (cat === "All") return arr;
-    if (cat === "Trending")
-      return [...arr].sort(
-        (a, b) =>
-          (reactions[b.id]?.downloads ?? b.downloads ?? b.plays ?? 0) -
-          (reactions[a.id]?.downloads ?? a.downloads ?? a.plays ?? 0),
-      );
-    return arr.filter((s) => s.category === cat);
-  }, [sounds, query, cat, reactions]);
+    if (source !== "demo") return sounds;
+    const q = debouncedQuery.toLowerCase();
+    return sounds.filter((s) => {
+      if (cat !== "All" && s.category !== cat) return false;
+      if (q && !(s.name?.toLowerCase().includes(q) || s.category?.toLowerCase().includes(q))) return false;
+      return true;
+    });
+  }, [sounds, source, debouncedQuery, cat]);
 
   const playingSound = sounds.find((s) => s.id === playingId);
   const playCatMeta  = playingSound ? getCat(playingSound.category) : null;
@@ -575,6 +640,19 @@ export default function MemeVault() {
                   : <>No sounds yet. <Link href="/upload" style={{ color: "var(--accent)", fontWeight: 700 }}>Upload one →</Link></>}
               </div>
             )}
+
+            {/* Infinite-scroll sentinel + status (real data only) */}
+            {source !== "demo" && source !== "loading" && (
+              <div ref={sentinelRef} style={S.listFooter}>
+                {loadingMore ? (
+                  <><WaveBars color="var(--muted)" height={16} count={5} /> Loading more…</>
+                ) : hasMore ? (
+                  <button onClick={loadMore} style={S.loadMoreBtn}>Load more</button>
+                ) : total > 0 ? (
+                  <span>{total} sound{total === 1 ? "" : "s"} · you&rsquo;ve reached the end</span>
+                ) : null}
+              </div>
+            )}
           </div>
         </main>
       </div>
@@ -705,5 +783,26 @@ const S: Record<string, CSSProperties> = {
     padding: "60px 20px",
     fontSize: 15,
     lineHeight: 1.7,
+  },
+  listFooter: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    color: "var(--muted)",
+    fontSize: 13,
+    padding: "24px 20px 40px",
+    minHeight: 40,
+  },
+  loadMoreBtn: {
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    color: "var(--text)",
+    borderRadius: 10,
+    padding: "9px 20px",
+    fontSize: 13.5,
+    fontWeight: 600,
+    fontFamily: "inherit",
+    cursor: "pointer",
   },
 };

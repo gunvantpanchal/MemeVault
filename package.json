@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "scrape": "node scripts/scrape.mjs",
-    "upload": "node scripts/upload-firebase.mjs"
+    "upload": "node scripts/upload-firebase.mjs",
+    "sync": "node scripts/sync-sounds.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
