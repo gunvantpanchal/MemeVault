@@ -3,7 +3,6 @@
 import React, { useState, useRef, useCallback, CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowLeft, UploadCloud, Play, Check, AlertCircle } from "lucide-react";
-import { isFirebaseConfigured, storage } from "@/lib/firebase";
 import { getEngine } from "@/lib/audio";
 
 const CATEGORIES = [
@@ -59,25 +58,30 @@ export default function UploadForm() {
       setStatus({ error: "Pick a file and give it a name first." });
       return;
     }
-    if (!isFirebaseConfigured || !storage) {
-      setStatus({ error: "Firebase Storage is required for uploads — add your keys to .env.local." });
-      return;
-    }
     setStatus("uploading");
     try {
-      const { ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
-      const safe      = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
-      const filePath  = `sounds/${Date.now()}-${safe}`;
-      const sref      = ref(storage, filePath);
-      await uploadBytes(sref, file);
-      const firebaseUrl = await getDownloadURL(sref);
+      const safe = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
 
+      // Upload via server-side API route (uses firebase-admin, bypasses Storage rules)
+      const form = new FormData();
+      form.append("file", file);
+      form.append("filename", safe);
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: form });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({})) as { error?: string };
+        throw new Error(err.error || `Upload failed (${uploadRes.status})`);
+      }
+      const { firebaseUrl, storagePath } = await uploadRes.json() as {
+        firebaseUrl: string;
+        storagePath: string;
+      };
+
+      // Save metadata to MongoDB
       const res = await fetch("/api/sounds", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: name.trim(), category, filename: safe, firebaseUrl, dur, storagePath: filePath }),
+        body: JSON.stringify({ name: name.trim(), category, filename: safe, firebaseUrl, dur, storagePath }),
       });
-
       if (!res.ok) {
         const err = await res.json().catch(() => ({})) as { error?: string };
         throw new Error(err.error || `Save failed (${res.status}) — is MONGODB_URI set in .env.local?`);
@@ -88,7 +92,7 @@ export default function UploadForm() {
       if (inputRef.current) inputRef.current.value = "";
     } catch (e) {
       console.error(e);
-      setStatus({ error: (e as Error)?.message || "Upload failed. Check your Storage rules and try again." });
+      setStatus({ error: (e as Error)?.message || "Upload failed. Try again." });
     }
   };
 
@@ -102,15 +106,6 @@ export default function UploadForm() {
           It goes straight into your MemeVault via Firebase Storage.
         </p>
 
-        {!isFirebaseConfigured && (
-          <div style={S.warn}>
-            <AlertCircle size={18} style={{ flexShrink: 0, marginTop: 1 }} />
-            <div>
-              <b>Firebase not connected.</b> Add your keys to <code style={S.code}>.env.local</code> to
-              enable uploads — see <code style={S.code}>.env.local.example</code> for the required values.
-            </div>
-          </div>
-        )}
 
         <div
           onClick={() => inputRef.current?.click()}
@@ -186,11 +181,12 @@ const S: Record<string, CSSProperties> = {
   code: { fontFamily: "var(--font-data)", background: "rgba(0,0,0,.3)", padding: "1px 5px", borderRadius: 5 },
   drop: {
     display: "flex", flexDirection: "column", alignItems: "center", gap: 12, cursor: "pointer",
-    border: "2px dashed var(--line)", borderRadius: 16, padding: "34px 20px",
+    borderWidth: "2px", borderStyle: "dashed", borderColor: "var(--border)",
+    borderRadius: 16, padding: "34px 20px",
     background: "var(--surface)", marginBottom: 20, transition: "all .15s",
   },
-  dropActive: { borderColor: "var(--accent)", background: "rgba(255,107,74,.07)" },
-  dropFilled: { borderStyle: "solid", borderColor: "rgba(255,107,74,.4)" },
+  dropActive: { borderColor: "var(--accent)", background: "rgba(255,45,135,.07)" },
+  dropFilled: { borderStyle: "solid", borderColor: "rgba(255,45,135,.4)" },
   fileMeta: { fontFamily: "var(--font-data)", fontSize: 12.5, color: "var(--muted)", marginTop: 4 },
   previewBtn: {
     display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer",

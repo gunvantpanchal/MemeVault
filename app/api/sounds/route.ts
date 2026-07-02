@@ -17,7 +17,8 @@ export async function GET(request: NextRequest) {
   const db = await getDb();
 
   if (db) {
-    const filter: Record<string, unknown> = {};
+    // Show approved sounds + legacy sounds that predate the status field
+    const filter: Record<string, unknown> = { status: { $nin: ["pending", "hidden"] } };
     if (cat && cat !== "All") filter.category = cat;
     if (q) filter.name = { $regex: q, $options: "i" };
 
@@ -62,25 +63,25 @@ export async function POST(request: NextRequest) {
     dur?: string;
     storagePath?: string;
   };
-  const { name, category, filename, firebaseUrl, dur } = body;
+  const { name, category, filename, firebaseUrl, dur, storagePath } = body;
 
   if (!name?.trim() || !firebaseUrl) {
     return NextResponse.json({ error: "name and firebaseUrl are required" }, { status: 400 });
   }
 
-  if (filename) {
-    const exists = await db.collection("sounds").findOne({ filename });
-    if (exists) {
-      return NextResponse.json({ error: "A sound with this filename already exists" }, { status: 409 });
-    }
-  }
+  // Use storagePath as filename when available — it already has a timestamp prefix
+  // so it's always unique, even for repeated uploads of the same file.
+  const resolvedFilename = storagePath
+    ? storagePath.replace(/^sounds\//, "")
+    : (filename || `${Date.now()}-sound.mp3`);
 
   const doc = {
     name:       name.trim(),
     category:   category || "Memes",
-    filename:   filename || "",
+    filename:   resolvedFilename,
     firebaseUrl,
     dur:        dur || "",
+    status:     "pending",   // requires admin approval before appearing in feed
     plays:      0,
     downloads:  0,
     likes:      0,

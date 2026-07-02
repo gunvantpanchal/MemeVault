@@ -7,6 +7,7 @@ class AudioEngine {
   master: GainNode | null = null;
   analyser: AnalyserNode | null = null;
   private bufferCache = new Map<string, AudioBuffer>();
+  private loadingUrls = new Set<string>();
   private volume = 0.8;
   private muted = false;
   lastActive = 0;
@@ -53,13 +54,30 @@ class AudioEngine {
     this.lastActive = performance.now() + 1400;
   }
 
-  async playUrl(url: string): Promise<void> {
+  preload(url: string, fallback?: string): void {
+    if (this.bufferCache.has(url) || this.loadingUrls.has(url)) return;
+    this.loadingUrls.add(url);
+    const ctx = this.ensure();
+    fetch(url)
+      .then((r) => r.arrayBuffer())
+      .then((d) => ctx.decodeAudioData(d))
+      .then((buf) => { this.bufferCache.set(url, buf); })
+      .catch(() => { if (fallback) this.preload(fallback); })
+      .finally(() => { this.loadingUrls.delete(url); });
+  }
+
+  async playUrl(url: string, fallback?: string): Promise<void> {
     const ctx = this.ensure();
     let buf = this.bufferCache.get(url);
     if (!buf) {
-      const data = await fetch(url).then((r) => r.arrayBuffer());
-      buf = await ctx.decodeAudioData(data);
-      this.bufferCache.set(url, buf);
+      try {
+        const data = await fetch(url).then((r) => r.arrayBuffer());
+        buf = await ctx.decodeAudioData(data);
+        this.bufferCache.set(url, buf);
+      } catch {
+        if (fallback) return this.playUrl(fallback);
+        throw new Error("Audio unavailable");
+      }
     }
     const src = ctx.createBufferSource();
     src.buffer = buf;
