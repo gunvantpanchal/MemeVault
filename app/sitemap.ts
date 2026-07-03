@@ -1,9 +1,10 @@
 import type { MetadataRoute } from "next";
 import { posts } from "@/lib/blog";
+import { getAllSoundIdsForSitemap } from "@/lib/sounds";
 
 const BASE = "https://mememusic.fun";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
   const staticRoutes: MetadataRoute.Sitemap = [
@@ -34,5 +35,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.7,
   }));
 
-  return [...staticRoutes, ...blogRoutes];
+  const soundIds = await getAllSoundIdsForSitemap();
+  const soundRoutes: MetadataRoute.Sitemap = soundIds.map(({ id, updatedAt }) => ({
+    url: `${BASE}/sound/${id}`,
+    lastModified: updatedAt ?? now,
+    changeFrequency: "weekly" as const,
+    priority: 0.6,
+  }));
+
+  return [...staticRoutes, ...blogRoutes, ...soundRoutes];
 }

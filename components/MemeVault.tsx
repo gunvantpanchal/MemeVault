@@ -4,121 +4,14 @@ import React, {
   useState, useRef, useEffect, useCallback, useMemo, CSSProperties,
 } from "react";
 import Link from "next/link";
-import {
-  Search, Volume2, VolumeX, Square, Play,
-  ThumbsUp, ThumbsDown, Download, Share2, Upload, X,
-} from "lucide-react";
+import { Search, Volume2, VolumeX, Square, Upload, X } from "lucide-react";
 import { SYNTHS, getSynth } from "@/lib/synths";
 import { getEngine } from "@/lib/audio";
-
-interface Sound {
-  id: string;
-  name: string;
-  category: string;
-  dur?: string;
-  kind: "file" | "synth";
-  synthId?: string;
-  url?: string;
-  filename?: string;
-  firebaseUrl?: string;
-  likes?: number;
-  dislikes?: number;
-  downloads?: number;
-  plays?: number;
-}
-
-interface ReactionState {
-  likes: number;
-  dislikes: number;
-  downloads: number;
-  userLiked?: boolean;
-  userDisliked?: boolean;
-}
-
-const CAT_META: Record<string, { emoji: string; color: string }> = {
-  Trending:  { emoji: "🔥", color: "#ff4500" },
-  Memes:     { emoji: "😂", color: "#8b5cf6" },
-  Bollywood: { emoji: "🎬", color: "#f59e0b" },
-  Anime:     { emoji: "🎌", color: "#ec4899" },
-  Gaming:    { emoji: "🎮", color: "#10b981" },
-  Viral:     { emoji: "📱", color: "#06b6d4" },
-  FX:        { emoji: "💥", color: "#f97316" },
-  Reactions: { emoji: "😮", color: "#a78bfa" },
-  Alerts:    { emoji: "🚨", color: "#ef4444" },
-  Game:      { emoji: "🕹️", color: "#22c55e" },
-  Music:     { emoji: "🎵", color: "#e879f9" },
-};
-const getCat = (c?: string) => CAT_META[c ?? ""] ?? { emoji: "🔊", color: "#6366f1" };
-
-// Stable sidebar/chip categories (the feed is server-paginated, so we can't
-// derive these from the currently-loaded subset).
-const CATEGORIES = [
-  "All", "Trending", "Memes", "Bollywood", "Anime",
-  "Gaming", "Viral", "Reactions", "FX", "Alerts", "Music",
-];
+import { getCat, CATEGORIES, parseDurMs, type Sound } from "@/lib/soundMeta";
+import { WaveBars } from "@/components/WaveBars";
+import { SoundCard } from "@/components/SoundCard";
 
 const PAGE_SIZE = 60;
-
-const ANIM_DELAYS = ["0s", "0.1s", "0.2s", "0.15s", "0.05s", "0.25s"];
-
-function WaveBars({ color, height = 20, count = 6 }: {
-  color: string; height?: number; count?: number;
-}) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 2, height }}>
-      {ANIM_DELAYS.slice(0, count).map((d, i) => (
-        <div key={i} className="waveBar"
-          style={{ width: 2.5, height, background: color, borderRadius: 2, animationDelay: d }} />
-      ))}
-    </div>
-  );
-}
-
-function RowWaveform({ soundName, isPlaying, color }: {
-  soundName: string; isPlaying: boolean; color: string;
-}) {
-  const heights = useMemo(() => {
-    let h = 0;
-    for (let i = 0; i < soundName.length; i++) h = (h * 31 + soundName.charCodeAt(i)) & 0x7fffffff;
-    return Array.from({ length: 52 }, () => {
-      h = (h * 1664525 + 1013904223) & 0x7fffffff;
-      return 0.1 + (h / 0x7fffffff) * 0.9;
-    });
-  }, [soundName]);
-
-  return (
-    <div className="rowWaveform" style={{ display: "flex", alignItems: "center", gap: 1.5, height: 32 }}>
-      {heights.map((ht, i) => (
-        <div
-          key={i}
-          className={isPlaying ? "waveBar" : undefined}
-          style={{
-            width: 2,
-            height: `${ht * 100}%`,
-            background: isPlaying ? color : "rgba(255,255,255,0.10)",
-            borderRadius: 2,
-            flexShrink: 0,
-            animationDelay: isPlaying ? `${(i % 6) * 0.1}s` : undefined,
-            transition: "background 0.3s",
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-function fmt(n: number): string {
-  n = Number(n) || 0;
-  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
-  if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k";
-  return String(n);
-}
-
-function parseDurMs(dur?: string): number {
-  if (!dur) return 2800;
-  const [m, s] = dur.split(":").map(Number);
-  return ((m || 0) * 60 + (s || 0)) * 1000 + 300;
-}
 
 export default function MemeVault() {
   const [sounds, setSounds]       = useState<Sound[]>([]);
@@ -129,7 +22,6 @@ export default function MemeVault() {
   const [muted, setMuted]         = useState(false);
   const [volume, setVolume]       = useState(0.8);
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [reactions, setReactions] = useState<Record<string, ReactionState>>({});
 
   // Pagination / infinite scroll
   const [page, setPage]             = useState(1);
@@ -259,10 +151,6 @@ export default function MemeVault() {
         })
         .catch(console.error);
       fetch(`/api/sounds/${s.id}/download`, { method: "POST" }).catch(() => {});
-      setReactions((r) => ({
-        ...r,
-        [s.id]: { ...r[s.id], downloads: (r[s.id]?.downloads ?? s.downloads ?? 0) + 1 },
-      }));
     } else if (s.kind === "synth" && s.synthId) {
       const def = getSynth(s.synthId);
       if (def) eng.playSynth(def.make);
@@ -286,52 +174,6 @@ export default function MemeVault() {
     setCat(c);
   }, [stopAll]);
 
-  const like = useCallback(async (s: Sound, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (reactions[s.id]?.userLiked) return;
-    setReactions((r) => ({
-      ...r,
-      [s.id]: {
-        ...r[s.id], userLiked: true, userDisliked: false,
-        likes: (r[s.id]?.likes ?? s.likes ?? 0) + 1,
-        dislikes: r[s.id]?.userDisliked
-          ? Math.max(0, (r[s.id]?.dislikes ?? s.dislikes ?? 0) - 1)
-          : (r[s.id]?.dislikes ?? s.dislikes ?? 0),
-        downloads: r[s.id]?.downloads ?? s.downloads ?? 0,
-      },
-    }));
-    if (s.kind !== "synth") {
-      const res = await fetch(`/api/sounds/${s.id}/like`, { method: "POST" }).catch(() => null);
-      if (res?.ok) {
-        const data = await res.json() as { likes: number; dislikes: number };
-        setReactions((r) => ({ ...r, [s.id]: { ...r[s.id], likes: data.likes, dislikes: data.dislikes } }));
-      }
-    }
-  }, [reactions]);
-
-  const dislike = useCallback(async (s: Sound, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (reactions[s.id]?.userDisliked) return;
-    setReactions((r) => ({
-      ...r,
-      [s.id]: {
-        ...r[s.id], userDisliked: true, userLiked: false,
-        dislikes: (r[s.id]?.dislikes ?? s.dislikes ?? 0) + 1,
-        likes: r[s.id]?.userLiked
-          ? Math.max(0, (r[s.id]?.likes ?? s.likes ?? 0) - 1)
-          : (r[s.id]?.likes ?? s.likes ?? 0),
-        downloads: r[s.id]?.downloads ?? s.downloads ?? 0,
-      },
-    }));
-    if (s.kind !== "synth") {
-      const res = await fetch(`/api/sounds/${s.id}/dislike`, { method: "POST" }).catch(() => null);
-      if (res?.ok) {
-        const data = await res.json() as { likes: number; dislikes: number };
-        setReactions((r) => ({ ...r, [s.id]: { ...r[s.id], likes: data.likes, dislikes: data.dislikes } }));
-      }
-    }
-  }, [reactions]);
-
   const downloadFile = useCallback((s: Sound, e: React.MouseEvent) => {
     e.stopPropagation();
     if (s.kind !== "file" || !s.id) return;
@@ -341,21 +183,7 @@ export default function MemeVault() {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setReactions((r) => ({
-      ...r,
-      [s.id]: { ...r[s.id], downloads: (r[s.id]?.downloads ?? s.downloads ?? 0) + 1 },
-    }));
-  }, []);
-
-  const share = useCallback((s: Sound, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (navigator.share) {
-      navigator.share({ title: s.name, text: `"${s.name}" — MemeMusic` }).catch(() => {});
-    } else {
-      navigator.clipboard?.writeText(
-        `${window.location.origin}?q=${encodeURIComponent(s.name)}`,
-      ).catch(() => {});
-    }
+    fetch(`/api/sounds/${s.id}/download`, { method: "POST" }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -433,11 +261,18 @@ export default function MemeVault() {
   const playingSound = sounds.find((s) => s.id === playingId);
   const playCatMeta  = playingSound ? getCat(playingSound.category) : null;
 
-  const getLikes     = (s: Sound) => reactions[s.id]?.likes     ?? s.likes     ?? 0;
-  const getDislikes  = (s: Sound) => reactions[s.id]?.dislikes  ?? s.dislikes  ?? 0;
-  const getDownloads = (s: Sound) => reactions[s.id]?.downloads ?? s.downloads ?? s.plays ?? 0;
-  const hasLiked     = (id: string) => !!reactions[id]?.userLiked;
-  const hasDisliked  = (id: string) => !!reactions[id]?.userDisliked;
+  const onHoverEnter = useCallback((s: Sound) => {
+    if (s.kind !== "file") return;
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => {
+      const streamUrl = `/api/sounds/${s.id}/stream`;
+      getEngine().preload(s.url ?? streamUrl, s.url ? streamUrl : undefined);
+    }, 200);
+  }, []);
+
+  const onHoverLeave = useCallback(() => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+  }, []);
 
   return (
     <div className="appRoot">
@@ -557,103 +392,17 @@ export default function MemeVault() {
           )}
 
           <div className="soundList">
-            {list.map((s) => {
-              const meta      = getCat(s.category);
-              const isPlaying = playingId === s.id;
-              const liked     = hasLiked(s.id);
-              const disliked  = hasDisliked(s.id);
-
-              return (
-                <div
-                  key={s.id}
-                  className={`soundRow${isPlaying ? " isPlaying" : ""}`}
-                  onClick={() => play(s)}
-                  onPointerEnter={() => {
-                    if (s.kind !== "file") return;
-                    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                    hoverTimerRef.current = setTimeout(() => {
-                      const streamUrl = `/api/sounds/${s.id}/stream`;
-                      getEngine().preload(s.url ?? streamUrl, s.url ? streamUrl : undefined);
-                    }, 200);
-                  }}
-                  onPointerLeave={() => {
-                    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-                  }}
-                  style={isPlaying ? {
-                    borderColor: `${meta.color}40`,
-                    background: `${meta.color}0a`,
-                    boxShadow: `0 0 0 1px ${meta.color}25, 0 8px 32px ${meta.color}15`,
-                  } : undefined}
-                >
-                  {/* Avatar */}
-                  <div
-                    className="rowAvatar"
-                    style={{
-                      background: `${meta.color}18`,
-                      border: `1.5px solid ${meta.color}${isPlaying ? "60" : "30"}`,
-                      boxShadow: isPlaying ? `0 0 14px ${meta.color}35` : undefined,
-                    }}
-                  >
-                    {isPlaying
-                      ? <WaveBars color={meta.color} height={16} count={5} />
-                      : <span style={{ fontSize: 20 }}>{meta.emoji}</span>}
-                    <div className="avatarOverlay">
-                      {isPlaying
-                        ? <Square size={12} fill="#fff" style={{ color: "#fff" }} />
-                        : <Play size={12} fill="#fff" style={{ color: "#fff", marginLeft: 2 }} />}
-                    </div>
-                  </div>
-
-                  {/* Name + category */}
-                  <div className="rowInfo">
-                    <div className="rowName" style={isPlaying ? { color: meta.color } : undefined}>
-                      {s.name}
-                    </div>
-                    <div className="rowCat" style={{ color: meta.color }}>
-                      <span>{meta.emoji}</span>
-                      <span>{s.category}</span>
-                    </div>
-                  </div>
-
-                  {/* Waveform */}
-                  <div className="rowWaveform">
-                    <RowWaveform soundName={s.name} isPlaying={isPlaying} color={meta.color} />
-                  </div>
-
-                  {/* Duration */}
-                  {s.dur && <span className="rowDur">{s.dur}</span>}
-
-                  {/* Actions */}
-                  <div className="rowActions" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={(e) => like(s, e)}
-                      className="actionBtn"
-                      style={liked ? { color: "#22c55e" } : undefined}
-                      title="Like"
-                    >
-                      <ThumbsUp size={13} fill={liked ? "currentColor" : "none"} />
-                      {getLikes(s) > 0 && <span className="actionCount">{fmt(getLikes(s))}</span>}
-                    </button>
-                    <button
-                      onClick={(e) => dislike(s, e)}
-                      className="actionBtn hideOnMobile"
-                      style={disliked ? { color: "#ef4444" } : undefined}
-                      title="Dislike"
-                    >
-                      <ThumbsDown size={13} fill={disliked ? "currentColor" : "none"} />
-                    </button>
-                    <button onClick={(e) => share(s, e)} className="actionBtn hideOnMobile" title="Share">
-                      <Share2 size={13} />
-                    </button>
-                    {s.kind === "file" && (
-                      <button onClick={(e) => downloadFile(s, e)} className="dlBtn" title="Download MP3">
-                        <Download size={13} style={{ color: "#fff" }} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+            {list.map((s) => (
+              <SoundCard
+                key={s.id}
+                sound={s}
+                isPlaying={playingId === s.id}
+                onPlay={play}
+                onHoverEnter={onHoverEnter}
+                onHoverLeave={onHoverLeave}
+                onDownload={downloadFile}
+              />
+            ))}
 
             {list.length === 0 && source !== "loading" && (
               <div style={S.emptyState}>
