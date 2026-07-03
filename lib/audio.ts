@@ -2,6 +2,8 @@
 
 export type MakeAudioFn = (ctx: AudioContext, out: GainNode, t: number) => void;
 
+const MAX_CACHED_BUFFERS = 40;
+
 class AudioEngine {
   ctx: AudioContext | null = null;
   master: GainNode | null = null;
@@ -30,6 +32,15 @@ class AudioEngine {
     this.master = master;
     this.analyser = analyser;
     return ctx;
+  }
+
+  private cacheBuffer(url: string, buf: AudioBuffer): void {
+    this.bufferCache.delete(url);
+    this.bufferCache.set(url, buf);
+    if (this.bufferCache.size > MAX_CACHED_BUFFERS) {
+      const oldest = this.bufferCache.keys().next().value;
+      if (oldest !== undefined) this.bufferCache.delete(oldest);
+    }
   }
 
   setVolume(v: number, muted: boolean): void {
@@ -63,7 +74,7 @@ class AudioEngine {
     fetch(url)
       .then((r) => r.arrayBuffer())
       .then((d) => ctx.decodeAudioData(d))
-      .then((buf) => { this.bufferCache.set(url, buf); })
+      .then((buf) => { this.cacheBuffer(url, buf); })
       .catch(() => { if (fallback) this.preload(fallback); })
       .finally(() => { this.loadingUrls.delete(url); });
   }
@@ -72,11 +83,13 @@ class AudioEngine {
     this.stopAll();
     const ctx = this.ensure();
     let buf = this.bufferCache.get(url);
-    if (!buf) {
+    if (buf) {
+      this.cacheBuffer(url, buf); // refresh recency
+    } else {
       try {
         const data = await fetch(url).then((r) => r.arrayBuffer());
         buf = await ctx.decodeAudioData(data);
-        this.bufferCache.set(url, buf);
+        this.cacheBuffer(url, buf);
       } catch {
         if (fallback) return this.playUrl(fallback);
         throw new Error("Audio unavailable");

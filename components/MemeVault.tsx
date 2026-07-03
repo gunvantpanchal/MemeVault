@@ -142,6 +142,7 @@ export default function MemeVault() {
   const rafRef      = useRef<number>(0);
   const timerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const mapSound = (s: Sound): Sound => ({ ...s, kind: "file" as const, url: s.firebaseUrl || s.url });
 
@@ -568,10 +569,15 @@ export default function MemeVault() {
                   className={`soundRow${isPlaying ? " isPlaying" : ""}`}
                   onClick={() => play(s)}
                   onPointerEnter={() => {
-                    if (s.kind === "file") {
-                    const streamUrl = `/api/sounds/${s.id}/stream`;
-                    getEngine().preload(s.url ?? streamUrl, s.url ? streamUrl : undefined);
-                  }
+                    if (s.kind !== "file") return;
+                    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+                    hoverTimerRef.current = setTimeout(() => {
+                      const streamUrl = `/api/sounds/${s.id}/stream`;
+                      getEngine().preload(s.url ?? streamUrl, s.url ? streamUrl : undefined);
+                    }, 200);
+                  }}
+                  onPointerLeave={() => {
+                    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
                   }}
                   style={isPlaying ? {
                     borderColor: `${meta.color}40`,
