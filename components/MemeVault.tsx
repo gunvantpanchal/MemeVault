@@ -238,29 +238,40 @@ export default function MemeVault() {
       if (timerRef.current) clearTimeout(timerRef.current);
       return;
     }
+    setPlayingId(s.id);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    // Set optimistic liveRef immediately so canvas animates while loading
+    liveRef.current = performance.now() + parseDurMs(s.dur);
+
     if (s.kind === "file" && s.id) {
       const streamUrl = `/api/sounds/${s.id}/stream`;
       const directUrl = s.url;
-      eng.playUrl(directUrl ?? streamUrl, directUrl ? streamUrl : undefined).catch(console.error);
-    } else if (s.kind === "synth" && s.synthId) {
-      const def = getSynth(s.synthId);
-      if (def) eng.playSynth(def.make);
-    }
-    const durMs = parseDurMs(s.dur);
-    liveRef.current = performance.now() + durMs;
-    setPlayingId(s.id);
-    if (s.kind === "file") {
+      eng.playUrl(directUrl ?? streamUrl, directUrl ? streamUrl : undefined)
+        .then((actualDurMs) => {
+          // Correct with real duration once audio actually starts
+          liveRef.current = performance.now() + actualDurMs;
+          if (timerRef.current) clearTimeout(timerRef.current);
+          timerRef.current = setTimeout(
+            () => setPlayingId((id) => (id === s.id ? null : id)),
+            actualDurMs,
+          );
+        })
+        .catch(console.error);
       fetch(`/api/sounds/${s.id}/download`, { method: "POST" }).catch(() => {});
       setReactions((r) => ({
         ...r,
         [s.id]: { ...r[s.id], downloads: (r[s.id]?.downloads ?? s.downloads ?? 0) + 1 },
       }));
+    } else if (s.kind === "synth" && s.synthId) {
+      const def = getSynth(s.synthId);
+      if (def) eng.playSynth(def.make);
+      const durMs = parseDurMs(s.dur);
+      liveRef.current = performance.now() + durMs;
+      timerRef.current = setTimeout(
+        () => setPlayingId((id) => (id === s.id ? null : id)),
+        durMs,
+      );
     }
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(
-      () => setPlayingId((id) => (id === s.id ? null : id)),
-      durMs,
-    );
   }, [playingId]);
 
   const stopAll = useCallback(() => {
@@ -268,6 +279,11 @@ export default function MemeVault() {
     setPlayingId(null);
     if (timerRef.current) clearTimeout(timerRef.current);
   }, []);
+
+  const changeCategory = useCallback((c: string) => {
+    stopAll();
+    setCat(c);
+  }, [stopAll]);
 
   const like = useCallback(async (s: Sound, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -442,7 +458,7 @@ export default function MemeVault() {
             return (
               <button
                 key={c}
-                onClick={() => setCat(c)}
+                onClick={() => changeCategory(c)}
                 className={`sidebarItem${active ? " sidebarItemActive" : ""}`}
                 style={active ? { color: m.color } : undefined}
               >
@@ -519,7 +535,7 @@ export default function MemeVault() {
               return (
                 <button
                   key={c}
-                  onClick={() => setCat(c)}
+                  onClick={() => changeCategory(c)}
                   className="chip"
                   style={active ? { color: m.color, borderColor: m.color, background: `${m.color}15` } : undefined}
                 >

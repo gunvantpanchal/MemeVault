@@ -8,6 +8,7 @@ class AudioEngine {
   analyser: AnalyserNode | null = null;
   private bufferCache = new Map<string, AudioBuffer>();
   private loadingUrls = new Set<string>();
+  private activeSources: AudioBufferSourceNode[] = [];
   private volume = 0.8;
   private muted = false;
   lastActive = 0;
@@ -44,6 +45,7 @@ class AudioEngine {
   }
 
   playSynth(make: MakeAudioFn): void {
+    this.stopAll();
     const ctx = this.ensure();
     const t = ctx.currentTime + 0.01;
     try {
@@ -66,7 +68,8 @@ class AudioEngine {
       .finally(() => { this.loadingUrls.delete(url); });
   }
 
-  async playUrl(url: string, fallback?: string): Promise<void> {
+  async playUrl(url: string, fallback?: string): Promise<number> {
+    this.stopAll();
     const ctx = this.ensure();
     let buf = this.bufferCache.get(url);
     if (!buf) {
@@ -82,20 +85,21 @@ class AudioEngine {
     const src = ctx.createBufferSource();
     src.buffer = buf;
     src.connect(this.master!);
+    this.activeSources.push(src);
+    src.onended = () => {
+      this.activeSources = this.activeSources.filter((s) => s !== src);
+    };
     src.start();
-    this.lastActive = performance.now() + Math.min(buf.duration * 1000, 6000);
+    const durMs = buf.duration * 1000;
+    this.lastActive = performance.now() + durMs;
+    return durMs;
   }
 
   stopAll(): void {
-    if (!this.ctx || !this.master) return;
-    const m = this.master;
-    m.gain.cancelScheduledValues(this.ctx.currentTime);
-    m.gain.setValueAtTime(0.0001, this.ctx.currentTime);
-    m.gain.setTargetAtTime(
-      this.muted ? 0 : this.volume,
-      this.ctx.currentTime + 0.08,
-      0.05,
-    );
+    for (const src of this.activeSources) {
+      try { src.stop(); } catch { /* already stopped */ }
+    }
+    this.activeSources = [];
     this.lastActive = 0;
   }
 }
