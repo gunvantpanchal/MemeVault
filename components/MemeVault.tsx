@@ -310,6 +310,9 @@ export default function MemeVault() {
           <Link href="/upload" className="sidebarUploadBtn">
             <Upload size={14} /> Upload Sound
           </Link>
+          <Link href="/gifs" style={S.blogLink}>
+            🎞️ Meme GIFs
+          </Link>
           <Link href="/blog" style={S.blogLink}>
             📝 Creator Blog
           </Link>
@@ -322,9 +325,14 @@ export default function MemeVault() {
         {/* Header */}
         <header className="appHeader">
           <div className="mobileLogo">
-            <span style={{ color: "#ff2d87" }}>meme</span>
-            <span>music</span>
-            <span style={{ color: "#ff2d87", fontSize: 12, opacity: 0.6, marginLeft: 2 }}>.fun</span>
+            <span style={{ display: "flex", alignItems: "baseline", gap: 1 }}>
+              <span style={{ color: "#ff2d87" }}>meme</span>
+              <span>music</span>
+              <span style={{ color: "#ff2d87", fontSize: 12, opacity: 0.6, marginLeft: 2 }}>.fun</span>
+            </span>
+            <Link href="/gifs" className="mobileSwitchBtn">
+              🎞️ GIFs
+            </Link>
           </div>
 
           <div className="headerRow">

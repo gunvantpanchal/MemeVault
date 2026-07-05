@@ -1,6 +1,7 @@
 import type { MetadataRoute } from "next";
 import { posts } from "@/lib/blog";
 import { getAllSoundIdsForSitemap } from "@/lib/sounds";
+import { getAllGifIdsForSitemap } from "@/lib/gifs";
 
 const BASE = "https://mememusic.fun";
 
@@ -26,6 +27,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.4,
     },
+    {
+      url: `${BASE}/gifs`,
+      lastModified: now,
+      changeFrequency: "daily",
+      priority: 0.9,
+    },
+    {
+      url: `${BASE}/gifs/upload`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.4,
+    },
   ];
 
   const blogRoutes: MetadataRoute.Sitemap = posts.map((post) => ({
@@ -43,5 +56,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }));
 
-  return [...staticRoutes, ...blogRoutes, ...soundRoutes];
+  const gifIds = await getAllGifIdsForSitemap();
+  const gifRoutes: MetadataRoute.Sitemap = gifIds.map(({ id, updatedAt }) => ({
+    url: `${BASE}/gifs/${id}`,
+    lastModified: updatedAt ?? now,
+    changeFrequency: "weekly" as const,
+    priority: 0.6,
+  }));
+
+  return [...staticRoutes, ...blogRoutes, ...soundRoutes, ...gifRoutes];
 }

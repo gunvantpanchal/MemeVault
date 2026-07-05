@@ -106,9 +106,27 @@ button:focus-visible, input:focus-visible, a:focus-visible {
   font-weight: 800;
   letter-spacing: -0.03em;
   margin-bottom: 12px;
-  align-items: baseline;
-  gap: 1px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
+.mobileSwitchBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: normal;
+  color: var(--text2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 12px;
+  background: rgba(255,255,255,0.03);
+  transition: all 0.15s;
+}
+.mobileSwitchBtn:hover { border-color: var(--border-hover); color: var(--text); }
 .headerRow {
   display: flex;
   align-items: center;
@@ -486,6 +504,139 @@ input[type="range"]::-webkit-slider-thumb {
   box-shadow: 0 4px 16px rgba(255,45,135,0.3);
 }
 .detailActionBtn.primary:hover { opacity: 0.9; background: linear-gradient(135deg, var(--accent), #c4206d); }
+
+/* ── Gif grid ── */
+.gifGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 14px 14px 60px;
+}
+.gifCard {
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  cursor: pointer;
+  overflow: hidden;
+  position: relative;
+  transition: border-color 0.15s, box-shadow 0.2s, transform 0.15s;
+}
+.gifCard:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+}
+.gifCard:active { transform: scale(0.99); }
+.gifThumbWrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  background: var(--surface);
+  overflow: hidden;
+}
+.gifThumbWrap img, .gifThumbWrap video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.gifDlBtn {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--accent), #c4206d);
+  border: none;
+  border-radius: 9px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s, transform 0.15s;
+  box-shadow: 0 3px 12px rgba(255,45,135,0.3);
+}
+.gifCard:hover .gifDlBtn { opacity: 1; }
+.gifDlBtn:hover { transform: scale(1.05); }
+.gifInfo { padding: 9px 11px 11px; }
+.gifName {
+  display: block;
+  font-weight: 700;
+  font-size: 12.5px;
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.gifCat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  margin-top: 3px;
+  opacity: 0.85;
+}
+
+/* ── Gif lightbox ── */
+.gifLightboxOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4,4,10,0.85);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.gifLightbox {
+  width: 100%;
+  max-width: 560px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 18px;
+}
+.gifLightboxMedia {
+  width: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.gifLightboxMedia img, .gifLightboxMedia video {
+  width: 100%;
+  max-height: 60vh;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+  background: #000;
+}
+.gifLightboxClose {
+  position: absolute;
+  top: -14px;
+  right: -14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+@media (max-width: 600px) {
+  .gifGrid { padding: 8px 8px 60px; gap: 8px; grid-template-columns: repeat(2, 1fr); }
+  .gifName { font-size: 11.5px; }
+}
 
 @media (max-width: 600px) {
   .detailAvatar { width: 68px; height: 68px; border-radius: 16px; }

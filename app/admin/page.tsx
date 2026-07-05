@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Eye, EyeOff, Trash2, LogOut, Search, X, Check, Ban, Clock } from "lucide-react";
 
 type Status = "pending" | "approved" | "hidden";
+type Kind = "sounds" | "gifs";
 
 interface Sound {
   id: string;
@@ -45,6 +46,7 @@ export default function AdminPage() {
   const [authed, setAuthed]   = useState<boolean | null>(null); // null = checking
   const [password, setPassword] = useState("");
   const [loginErr, setLoginErr] = useState("");
+  const [kind, setKind]       = useState<Kind>("sounds");
   const [sounds, setSounds]   = useState<Sound[]>([]);
   const [query, setQuery]     = useState("");
   const [filter, setFilter]   = useState<"all" | Status | "legacy">("all");
@@ -53,12 +55,12 @@ export default function AdminPage() {
   const [backfilling, setBackfilling] = useState(false);
   const [backfillDone, setBackfillDone] = useState<number | null>(null);
 
-  const loadSounds = useCallback(async () => {
+  const loadSounds = useCallback(async (k: Kind = kind) => {
     setLoading(true);
-    const res = await fetch("/api/admin/sounds");
+    const res = await fetch(`/api/admin/${k}`);
     if (res.ok) setSounds(await res.json() as Sound[]);
     setLoading(false);
-  }, []);
+  }, [kind]);
 
   useEffect(() => {
     fetch("/api/admin/sounds").then((r) => {
@@ -70,6 +72,12 @@ export default function AdminPage() {
       }
     });
   }, []);
+
+  const switchKind = (k: Kind) => {
+    setKind(k);
+    setFilter("all");
+    loadSounds(k);
+  };
 
   const login = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,7 +101,7 @@ export default function AdminPage() {
   const setStatus = async (s: Sound, status: Status) => {
     setBusy((b) => ({ ...b, [s.id]: true }));
     setSounds((prev) => prev.map((p) => p.id === s.id ? { ...p, status } : p));
-    await fetch(`/api/admin/sounds/${s.id}`, {
+    await fetch(`/api/admin/${kind}/${s.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -104,7 +112,7 @@ export default function AdminPage() {
   const deleteSound = async (s: Sound) => {
     if (!confirm(`Delete "${s.name}"? This cannot be undone.`)) return;
     setBusy((b) => ({ ...b, [s.id]: true }));
-    await fetch(`/api/admin/sounds/${s.id}`, { method: "DELETE" });
+    await fetch(`/api/admin/${kind}/${s.id}`, { method: "DELETE" });
     setSounds((prev) => prev.filter((p) => p.id !== s.id));
   };
 
@@ -124,6 +132,8 @@ export default function AdminPage() {
   const approved = sounds.filter((s) => s.status === "approved");
   const hidden   = sounds.filter((s) => s.status === "hidden");
   const legacy   = sounds.filter((s) => !s.status);
+
+  const noun = kind === "sounds" ? "sound" : "gif";
 
   const filtered = sounds.filter((s) => {
     const matchQ = !query || s.name.toLowerCase().includes(query.toLowerCase()) || (s.category ?? "").toLowerCase().includes(query.toLowerCase());
@@ -184,6 +194,22 @@ export default function AdminPage() {
 
       <main style={S.main}>
 
+        {/* Kind tabs */}
+        <div style={S.kindTabs}>
+          <button
+            onClick={() => switchKind("sounds")}
+            style={{ ...S.kindTab, ...(kind === "sounds" ? S.kindTabActive : {}) }}
+          >
+            🔊 Sounds
+          </button>
+          <button
+            onClick={() => switchKind("gifs")}
+            style={{ ...S.kindTab, ...(kind === "gifs" ? S.kindTabActive : {}) }}
+          >
+            🎞️ GIFs
+          </button>
+        </div>
+
         {/* Stats row */}
         <div style={S.stats}>
           {[
@@ -225,7 +251,7 @@ export default function AdminPage() {
         {pending.length > 0 && (
           <div style={S.pendingBanner}>
             <Clock size={16} style={{ color: "#f59e0b", flexShrink: 0 }} />
-            <span><b style={{ color: "#f59e0b" }}>{pending.length} sound{pending.length !== 1 ? "s" : ""} waiting for review.</b> Approve or reject below.</span>
+            <span><b style={{ color: "#f59e0b" }}>{pending.length} {noun}{pending.length !== 1 ? "s" : ""} waiting for review.</b> Approve or reject below.</span>
           </div>
         )}
 
@@ -253,19 +279,19 @@ export default function AdminPage() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search sounds…"
+              placeholder={`Search ${noun}s…`}
               style={S.searchInput}
             />
             {query && <button onClick={() => setQuery("")} style={S.iconBtn}><X size={13} /></button>}
           </div>
-          <div style={S.resultCount}>{filtered.length} sound{filtered.length !== 1 ? "s" : ""}</div>
+          <div style={S.resultCount}>{filtered.length} {noun}{filtered.length !== 1 ? "s" : ""}</div>
         </div>
 
         {/* Table */}
         {loading ? (
           <div style={S.emptyState}>Loading…</div>
         ) : filtered.length === 0 ? (
-          <div style={S.emptyState}>No sounds found.</div>
+          <div style={S.emptyState}>No {noun}s found.</div>
         ) : (
           <div style={S.table}>
             {filtered.map((s) => {
@@ -412,6 +438,15 @@ const S: Record<string, React.CSSProperties> = {
     borderRadius: 8, padding: "7px 12px", fontSize: 13, cursor: "pointer",
   },
   main: { maxWidth: 960, margin: "0 auto", padding: "28px 20px 80px" },
+  kindTabs: { display: "flex", gap: 8, marginBottom: 18 },
+  kindTab: {
+    background: "transparent", border: "1px solid rgba(255,255,255,0.1)",
+    color: "var(--muted)", borderRadius: 10, padding: "8px 16px",
+    fontSize: 13.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+  },
+  kindTabActive: {
+    background: "rgba(255,45,135,0.12)", borderColor: "rgba(255,45,135,0.35)", color: "#ff2d87",
+  },
   stats: { display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" },
   statCard: {
     flex: "1 1 90px", padding: "14px 16px", borderRadius: 12, border: "1px solid",
