@@ -619,19 +619,22 @@ input[type="range"]::-webkit-slider-thumb {
 }
 .gifLightboxClose {
   position: absolute;
-  top: -14px;
-  right: -14px;
+  top: 10px;
+  right: 10px;
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--card);
-  border: 1px solid var(--border);
-  color: var(--text);
+  background: rgba(0,0,0,0.6);
+  border: 1px solid rgba(255,255,255,0.15);
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
+  z-index: 2;
+  transition: background 0.15s;
 }
+.gifLightboxClose:hover { background: rgba(0,0,0,0.8); }
 
 @media (max-width: 600px) {
   .gifGrid { padding: 8px 8px 60px; gap: 8px; grid-template-columns: repeat(2, 1fr); }
