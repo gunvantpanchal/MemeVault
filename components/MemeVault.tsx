@@ -317,12 +317,6 @@ export default function MemeVault() {
           <Link href="/blog" style={S.blogLink}>
             📝 Creator Blog
           </Link>
-          <div style={S.legalLinks}>
-            <Link href="/about" style={S.legalLink}>About</Link>
-            <Link href="/contact" style={S.legalLink}>Contact</Link>
-            <Link href="/privacy-policy" style={S.legalLink}>Privacy</Link>
-            <Link href="/terms-of-service" style={S.legalLink}>Terms</Link>
-          </div>
         </div>
       </aside>
 
@@ -517,20 +511,6 @@ const S: Record<string, CSSProperties> = {
     border: "1px solid var(--border)",
     background: "transparent",
     transition: "all 0.15s",
-  },
-  legalLinks: {
-    display: "flex",
-    flexWrap: "wrap",
-    gap: "4px 10px",
-    justifyContent: "center",
-    marginTop: 4,
-    paddingTop: 12,
-    borderTop: "1px solid var(--border)",
-  },
-  legalLink: {
-    fontSize: 11.5,
-    fontWeight: 500,
-    color: "var(--muted)",
   },
   searchInput: {
     flex: 1,
