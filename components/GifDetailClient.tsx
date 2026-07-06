@@ -8,6 +8,7 @@ import {
 import { getCat, fmt, type Gif } from "@/lib/gifMeta";
 import { GifCard } from "@/components/GifCard";
 import { GifMedia } from "@/components/GifMedia";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export default function GifDetailClient({ gif, similar }: { gif: Gif; similar: Gif[] }) {
   const [likes, setLikes]             = useState(gif.likes ?? 0);
@@ -168,6 +169,8 @@ export default function GifDetailClient({ gif, similar }: { gif: Gif; similar: G
           <Link href="/gifs" style={S.ctaBtn}>Open GifVault →</Link>
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }

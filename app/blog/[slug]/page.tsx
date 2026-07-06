@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { posts, getPost, getRelatedPosts } from "@/lib/blog";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export function generateStaticParams() {
   return posts.map((p) => ({ slug: p.slug }));
@@ -24,6 +25,11 @@ export async function generateMetadata(
       type: "article",
       publishedTime: post.date,
       tags: ["meme sounds", post.category, "soundboard"],
+    },
+    twitter: {
+      card: "summary",
+      title: post.title,
+      description: post.description,
     },
   };
 }
@@ -128,6 +134,11 @@ export default async function BlogPostPage(
                 <div key={i}>
                   <h3 style={S.h3}>{section.heading}</h3>
                   {section.text && <p style={S.para}>{section.text}</p>}
+                  {section.href && (
+                    <Link href={section.href} style={{ ...S.inlineSoundLink, color }}>
+                      {section.linkLabel ?? "Listen & download →"}
+                    </Link>
+                  )}
                 </div>
               );
               if (section.type === "ul") return (
@@ -159,8 +170,8 @@ export default async function BlogPostPage(
               if (section.type === "cta") return (
                 <div key={i} style={S.ctaBox}>
                   <p style={{ margin: "0 0 16px", fontWeight: 600, fontSize: 15 }}>{section.text}</p>
-                  <Link href="/" style={{ ...S.ctaBtn, background: `linear-gradient(135deg, ${color}, ${color}bb)` }}>
-                    Go to MemeMusic.fun →
+                  <Link href={section.href ?? "/"} style={{ ...S.ctaBtn, background: `linear-gradient(135deg, ${color}, ${color}bb)` }}>
+                    {section.linkLabel ?? "Go to MemeMusic.fun →"}
                   </Link>
                 </div>
               );
@@ -198,11 +209,13 @@ export default async function BlogPostPage(
         <div style={S.bottomCta}>
           <div style={S.ctaTitle}>Hear all the sounds we mentioned</div>
           <p style={{ color: "var(--text2)", fontSize: 15, margin: "0 0 24px", lineHeight: 1.6 }}>
-            230+ meme sounds — instant playback, free MP3 download, no sign-up.
+            3,000+ meme sounds — instant playback, free MP3 download, no sign-up.
           </p>
           <Link href="/" style={S.ctaBtn}>Open Soundboard →</Link>
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }
@@ -319,6 +332,12 @@ const S: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     margin: "28px 0 8px",
     color: "var(--text)",
+  },
+  inlineSoundLink: {
+    display: "inline-flex",
+    fontSize: 13.5,
+    fontWeight: 700,
+    margin: "-8px 0 20px",
   },
   list: {
     listStyle: "none",

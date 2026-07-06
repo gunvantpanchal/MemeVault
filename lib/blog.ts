@@ -3,6 +3,10 @@ export interface BlogSection {
   heading?: string;
   text?: string;
   items?: string[];
+  /** Optional internal link rendered under a "cta" section, or as an inline
+   *  "play this sound" link under an "h3" section that names a specific sound. */
+  href?: string;
+  linkLabel?: string;
 }
 
 export interface BlogPost {
@@ -44,26 +48,36 @@ export const posts: BlogPost[] = [
         type: "h3",
         heading: "1. Maa Tari Oo Bhai",
         text: "The phrase that launched a thousand reaction videos. Originating from a viral Gujarati skit, this sound works for everything from unexpected plot twists to Monday morning mood.",
+        href: "/sound/maa-tari-oo-bhai",
+        linkLabel: "▶ Play & download this sound",
       },
       {
         type: "h3",
         heading: "2. Dexter Meme",
         text: "A remix of the classic Dexter's Lab intro repackaged for desi internet. Used whenever someone does something surprisingly genius — or disastrously wrong.",
+        href: "/sound/dexter-meme",
+        linkLabel: "▶ Play & download this sound",
       },
       {
         type: "h3",
         heading: "3. Shocked Sound",
         text: "The dramatic 'dun dun DUN' that hits when something unexpected happens. A staple in reaction content across every Indian creator's toolkit.",
+        href: "/sound/shocked-sound-effect",
+        linkLabel: "▶ Play & download this sound",
       },
       {
         type: "h3",
         heading: "4. Instagram Thud",
         text: "That satisfying heavy drop sound. Used for product reveals, food videos, and anything that needs a cinematic impact moment.",
+        href: "/sound/instagram-thud",
+        linkLabel: "▶ Play & download this sound",
       },
       {
         type: "h3",
         heading: "5. Aayein Meme",
         text: "A confused, high-pitched 'huh?' that perfectly captures the energy of Indian relatives asking questions at family functions — or any moment of absolute bewilderment.",
+        href: "/sound/aayein-meme",
+        linkLabel: "▶ Play & download this sound",
       },
       {
         type: "h2",
@@ -89,6 +103,8 @@ export const posts: BlogPost[] = [
       {
         type: "cta",
         text: "Browse and download all trending Indian meme sounds",
+        href: "/category/trending",
+        linkLabel: "Browse Trending Sounds →",
       },
       {
         type: "h2",
@@ -178,6 +194,8 @@ export const posts: BlogPost[] = [
       {
         type: "cta",
         text: "Download free Bollywood meme sounds",
+        href: "/category/bollywood",
+        linkLabel: "Browse Bollywood Sounds →",
       },
       {
         type: "h2",
@@ -261,6 +279,8 @@ export const posts: BlogPost[] = [
       {
         type: "cta",
         text: "Browse all anime meme sounds — free download",
+        href: "/category/anime",
+        linkLabel: "Browse Anime Sounds →",
       },
       {
         type: "p",

@@ -9,8 +9,16 @@ import { getEngine } from "@/lib/audio";
 import { getCat, fmt, type Sound } from "@/lib/soundMeta";
 import { WaveBars } from "@/components/WaveBars";
 import { SoundCard } from "@/components/SoundCard";
+import { SiteFooter } from "@/components/SiteFooter";
 
-export default function SoundDetailClient({ sound, similar }: { sound: Sound; similar: Sound[] }) {
+export default function SoundDetailClient({
+  sound, similar, description, categoryHref,
+}: {
+  sound: Sound;
+  similar: Sound[];
+  description?: string;
+  categoryHref?: string;
+}) {
   const [playingId, setPlayingId]     = useState<string | null>(null);
   const [likes, setLikes]             = useState(sound.likes ?? 0);
   const [dislikes, setDislikes]       = useState(sound.dislikes ?? 0);
@@ -95,7 +103,7 @@ export default function SoundDetailClient({ sound, similar }: { sound: Sound; si
   }, []);
 
   const share = useCallback(() => {
-    const url = `${window.location.origin}/sound/${sound.id}`;
+    const url = `${window.location.origin}/sound/${sound.slug ?? sound.id}`;
     if (navigator.share) {
       navigator.share({ title: sound.name, text: `"${sound.name}" — MemeMusic`, url }).catch(() => {});
     } else {
@@ -104,15 +112,15 @@ export default function SoundDetailClient({ sound, similar }: { sound: Sound; si
         setTimeout(() => setCopied(false), 1500);
       }).catch(() => {});
     }
-  }, [sound.id, sound.name]);
+  }, [sound.id, sound.slug, sound.name]);
 
   const copyLink = useCallback(() => {
-    const url = `${window.location.origin}/sound/${sound.id}`;
+    const url = `${window.location.origin}/sound/${sound.slug ?? sound.id}`;
     navigator.clipboard?.writeText(url).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     }).catch(() => {});
-  }, [sound.id]);
+  }, [sound.id, sound.slug]);
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)", fontFamily: "var(--font-body)" }}>
@@ -133,7 +141,11 @@ export default function SoundDetailClient({ sound, similar }: { sound: Sound; si
         <div style={S.breadcrumb}>
           <Link href="/" style={{ color: "var(--muted)" }}>All Sounds</Link>
           <span style={{ color: "var(--muted)" }}> / </span>
-          <span style={{ color: "var(--text2)" }}>{sound.category}</span>
+          {categoryHref ? (
+            <Link href={categoryHref} style={{ color: "var(--text2)" }}>{sound.category}</Link>
+          ) : (
+            <span style={{ color: "var(--text2)" }}>{sound.category}</span>
+          )}
         </div>
 
         {/* Hero */}
@@ -165,6 +177,8 @@ export default function SoundDetailClient({ sound, similar }: { sound: Sound; si
             </div>
           </div>
         </div>
+
+        {description && <p style={S.description}>{description}</p>}
 
         <p style={S.favLine}>
           ❤️ <b>{fmt(likes)} users</b> liked this sound button
@@ -221,11 +235,13 @@ export default function SoundDetailClient({ sound, similar }: { sound: Sound; si
         <div style={S.bottomCta}>
           <div style={S.ctaTitle}>Want more meme sounds?</div>
           <p style={{ color: "var(--text2)", fontSize: 15, margin: "0 0 24px", lineHeight: 1.6 }}>
-            230+ meme sounds — instant playback, free MP3 download, no sign-up.
+            3,000+ meme sounds — instant playback, free MP3 download, no sign-up.
           </p>
           <Link href="/" style={S.ctaBtn}>Open Soundboard →</Link>
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }
@@ -296,6 +312,13 @@ const S: Record<string, CSSProperties> = {
     borderRadius: "50%",
     background: "var(--muted)",
     display: "inline-block",
+  },
+  description: {
+    marginTop: 20,
+    fontSize: 15.5,
+    lineHeight: 1.7,
+    color: "var(--text2)",
+    maxWidth: 640,
   },
   favLine: {
     marginTop: 24,

@@ -110,7 +110,7 @@ export default function OGImage() {
               marginTop: 8,
               letterSpacing: "-0.3px",
             }}>
-              230+ sounds · Instant playback · Free MP3 download · No sign-up
+              3,000+ sounds · Instant playback · Free MP3 download · No sign-up
             </div>
           </div>
 

@@ -85,6 +85,38 @@ async function loadEnv() {
   } catch { /* rely on process.env */ }
 }
 
+function slugify(input) {
+  return (
+    input
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80)
+      .replace(/-+$/g, "") || "sound"
+  );
+}
+
+const CLEAN_SLUG_RE = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+const TIMESTAMP_PREFIX_RE = /^\d{10,}-/;
+
+function baseSlugFor(name, filename) {
+  if (filename) {
+    const stem = filename.replace(/\.[^.]+$/, "").toLowerCase();
+    if (CLEAN_SLUG_RE.test(stem) && !TIMESTAMP_PREFIX_RE.test(stem)) return stem;
+  }
+  return slugify(name || "sound");
+}
+
+function uniqueSlug(base, taken) {
+  let candidate = base;
+  let n = 2;
+  while (taken.has(candidate)) candidate = `${base}-${n++}`;
+  taken.add(candidate);
+  return candidate;
+}
+
 function detectCategory(name, defaultCat) {
   const n = name.toLowerCase();
   if (/\b(anime|naruto|goku|pokemon|pikachu|sasuke|demon slayer|jujutsu|jjk|bleach|one piece|luffy)\b/.test(n)) return "Anime";
@@ -153,9 +185,11 @@ async function main() {
   await mongo.connect();
   const col = mongo.db("memevault").collection("sounds");
   await col.createIndex({ filename: 1 }, { unique: true }).catch(() => {});
+  await col.createIndex({ slug: 1 }, { unique: true }).catch(() => {});
 
-  const existing = await col.find({}, { projection: { filename: 1 } }).toArray();
+  const existing = await col.find({}, { projection: { filename: 1, slug: 1 } }).toArray();
   const seen = new Set(existing.map((d) => d.filename));
+  const slugsTaken = new Set(existing.map((d) => d.slug).filter(Boolean));
   console.log(`   Live DB has ${seen.size} sounds — these will be skipped.\n`);
 
   // ── Firebase Admin ──
@@ -223,9 +257,11 @@ async function main() {
           const file = bucket.file(storagePath);
           await file.save(buf, { metadata: { contentType: "audio/mpeg" }, public: true, resumable: false });
           const firebaseUrl = file.publicUrl();
+          const slug = uniqueSlug(baseSlugFor(s.name, s.filename), slugsTaken);
 
           await col.insertOne({
             name: s.name,
+            slug,
             category: s.category,
             filename: s.filename,
             firebaseUrl,

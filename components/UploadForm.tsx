@@ -4,6 +4,7 @@ import React, { useState, useRef, useCallback, CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowLeft, UploadCloud, Play, Check, AlertCircle } from "lucide-react";
 import { getEngine } from "@/lib/audio";
+import { SiteFooter } from "@/components/SiteFooter";
 
 const CATEGORIES = [
   "Trending", "Memes", "Bollywood", "Anime", "Gaming",
@@ -164,6 +165,8 @@ export default function UploadForm() {
           <div style={S.err}><AlertCircle size={16} /> {status.error}</div>
         )}
       </div>
+
+      <SiteFooter />
     </div>
   );
 }

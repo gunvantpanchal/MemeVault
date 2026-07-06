@@ -4,6 +4,7 @@ import React, { useState, useRef, useCallback, CSSProperties } from "react";
 import Link from "next/link";
 import { ArrowLeft, UploadCloud, Check, AlertCircle } from "lucide-react";
 import { GifMedia } from "@/components/GifMedia";
+import { SiteFooter } from "@/components/SiteFooter";
 
 const CATEGORIES = [
   "Trending", "Memes", "Reactions", "Funny", "Anime", "Gaming", "Viral", "Animals",
@@ -140,6 +141,8 @@ export default function UploadGifForm() {
           <div style={S.err}><AlertCircle size={16} /> {status.error}</div>
         )}
       </div>
+
+      <SiteFooter />
     </div>
   );
 }

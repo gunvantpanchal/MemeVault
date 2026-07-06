@@ -167,10 +167,25 @@ async function main() {
     const url = page === 1 ? `${BASE_URL}/` : `${BASE_URL}/page/${page}/`;
 
     let gifs;
-    try {
-      gifs = parseGifs(await fetchHtml(url));
-    } catch (e) {
-      console.error(`   ✗ page ${page}: ${e.message} — stopping (likely end of pagination)`);
+    let lastErr;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        gifs = parseGifs(await fetchHtml(url));
+        lastErr = null;
+        break;
+      } catch (e) {
+        lastErr = e;
+        if (e.message.includes("HTTP 404")) break; // genuine end of pagination — don't retry
+        console.error(`   ⚠ page ${page} attempt ${attempt}/3: ${e.message}`);
+        await sleep(2000 * attempt);
+      }
+    }
+    if (lastErr) {
+      if (lastErr.message.includes("HTTP 404")) {
+        console.log(`   page ${page}: 404 — reached the end of pagination`);
+      } else {
+        console.error(`   ✗ page ${page}: giving up after 3 attempts (${lastErr.message}) — stopping`);
+      }
       break;
     }
 

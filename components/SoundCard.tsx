@@ -50,7 +50,7 @@ export function SoundCard({
         <div className="cardInfo">
           {sound.kind === "file" ? (
             <Link
-              href={`/sound/${sound.id}`}
+              href={`/sound/${sound.slug ?? sound.id}`}
               className="cardName"
               style={isPlaying ? { color: meta.color } : undefined}
               onClick={(e) => e.stopPropagation()}

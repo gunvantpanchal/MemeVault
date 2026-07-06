@@ -8,6 +8,7 @@ import { Search, Upload, X, Download, Share2, Link2, Check } from "lucide-react"
 import { getCat, CATEGORIES, type Gif } from "@/lib/gifMeta";
 import { GifCard } from "@/components/GifCard";
 import { GifMedia } from "@/components/GifMedia";
+import { SiteFooter } from "@/components/SiteFooter";
 
 const PAGE_SIZE = 60;
 
@@ -177,6 +178,12 @@ export default function GifVault() {
           <Link href="/" style={S.soundLink}>
             🔊 Meme Sounds
           </Link>
+          <div style={S.legalLinks}>
+            <Link href="/about" style={S.legalLink}>About</Link>
+            <Link href="/contact" style={S.legalLink}>Contact</Link>
+            <Link href="/privacy-policy" style={S.legalLink}>Privacy</Link>
+            <Link href="/terms-of-service" style={S.legalLink}>Terms</Link>
+          </div>
         </div>
       </aside>
 
@@ -263,6 +270,8 @@ export default function GifVault() {
               ) : null}
             </div>
           )}
+
+          <SiteFooter />
         </main>
       </div>
 
@@ -362,6 +371,20 @@ const S: Record<string, CSSProperties> = {
     border: "1px solid var(--border)",
     background: "transparent",
     transition: "all 0.15s",
+  },
+  legalLinks: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: "4px 10px",
+    justifyContent: "center",
+    marginTop: 4,
+    paddingTop: 12,
+    borderTop: "1px solid var(--border)",
+  },
+  legalLink: {
+    fontSize: 11.5,
+    fontWeight: 500,
+    color: "var(--muted)",
   },
   searchInput: {
     flex: 1,

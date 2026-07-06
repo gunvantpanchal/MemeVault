@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     template: "%s | MemeMusic",
   },
   description:
-    "The #1 meme soundboard. Play & download 230+ trending meme sounds — Indian memes, Bollywood, anime, gaming, viral clips & more. Instant playback, free download.",
+    "Play & download 3,000+ trending meme sounds — Indian, Bollywood, anime, gaming & viral clips. Instant, free, no sign-up.",
   keywords: [
     "meme soundboard",
     "meme sounds",
@@ -61,7 +61,7 @@ export const metadata: Metadata = {
     siteName: "MemeMusic",
     title: "MemeMusic — Meme Soundboard | Play & Download Meme Sounds",
     description:
-      "Play & download 230+ trending meme sounds — Indian memes, Bollywood, anime, gaming, viral clips & more. Free, instant, no sign-up.",
+      "Play & download 3,000+ trending meme sounds — Indian memes, Bollywood, anime, gaming, viral clips & more. Free & instant.",
     images: [
       {
         url: `${BASE_URL}/opengraph-image`,
@@ -76,7 +76,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "MemeMusic — Meme Soundboard | Play & Download Meme Sounds",
     description:
-      "Play & download 230+ trending meme sounds — Indian memes, Bollywood, anime, gaming & more. Free & instant.",
+      "Play & download 3,000+ trending meme sounds — Bollywood, anime, gaming & viral clips. Free & instant, no sign-up.",
     images: [`${BASE_URL}/opengraph-image`],
   },
   robots: {
@@ -126,10 +126,10 @@ const jsonLd = {
         priceCurrency: "USD",
       },
       description:
-        "Play and download 230+ trending meme sounds including Indian memes, Bollywood, anime, gaming and viral clips. Free meme soundboard, no sign-up required.",
+        "Play and download 3,000+ trending meme sounds including Indian memes, Bollywood, anime, gaming and viral clips. Free meme soundboard, no sign-up required.",
       screenshot: `${BASE_URL}/og-image.png`,
       featureList: [
-        "230+ meme sound effects",
+        "3,000+ meme sound effects",
         "Instant audio playback",
         "Free MP3 download",
         "Indian & Bollywood memes",

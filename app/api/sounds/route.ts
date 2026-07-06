@@ -2,6 +2,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/mongodb";
+import { generateUniqueSoundSlug } from "@/lib/sounds";
 import { Document, WithId } from "mongodb";
 
 function serialize(doc: WithId<Document>) {
@@ -88,9 +89,11 @@ export async function POST(request: NextRequest) {
   const resolvedFilename = storagePath
     ? storagePath.replace(/^sounds\//, "")
     : (filename || `${Date.now()}-sound.mp3`);
+  const slug = await generateUniqueSoundSlug(name.trim(), resolvedFilename);
 
   const doc = {
     name:       name.trim(),
+    slug,
     category:   category || "Memes",
     filename:   resolvedFilename,
     firebaseUrl,

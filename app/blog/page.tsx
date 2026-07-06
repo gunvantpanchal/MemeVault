@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { posts } from "@/lib/blog";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const metadata: Metadata = {
   title: "Blog — Meme Sound Guides & Creator Tips",
@@ -12,6 +13,12 @@ export const metadata: Metadata = {
     description:
       "Guides on trending meme sounds, Bollywood audio for Reels, anime sound effects, and how to go viral using meme audio.",
     url: "https://mememusic.fun/blog",
+  },
+  twitter: {
+    card: "summary",
+    title: "MemeMusic Blog — Meme Sound Guides & Creator Tips",
+    description:
+      "Guides on trending meme sounds, Bollywood audio for Reels, anime sound effects, and how to go viral using meme audio.",
   },
 };
 
@@ -85,10 +92,12 @@ export default function BlogPage() {
         {/* CTA */}
         <div style={S.ctaBox}>
           <div style={S.ctaTitle}>Ready to try the sounds?</div>
-          <p style={S.ctaSub}>Browse 230+ meme sounds — play instantly, download free, no sign-up.</p>
+          <p style={S.ctaSub}>Browse 3,000+ meme sounds — play instantly, download free, no sign-up.</p>
           <Link href="/" style={S.ctaBtn}>Open Soundboard →</Link>
         </div>
       </main>
+
+      <SiteFooter />
     </div>
   );
 }
